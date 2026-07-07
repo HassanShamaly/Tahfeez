@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0d1412">
+<title>متابع التسميع</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1412; --card: #16211d; --card2: #1c2a25;
+    --gold: #d4af6a; --green: #4caf7d; --red: #e05d5d;
+    --text: #e8e4d9; --dim: #8a968f; --border: #2a3a33;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Tajawal', 'Noto Naskh Arabic', sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .quran { font-family: 'Amiri Quran', 'Noto Naskh Arabic', serif; }
+  .screen { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+  .screen.active { display: flex; }
+
+  /* ===== شاشة الإعداد ===== */
+  #setup { padding: 24px 20px; overflow-y: auto; }
+  #setup h1 { color: var(--gold); font-size: 30px; text-align: center; margin: 16px 0 4px; }
+  #setup .sub { text-align: center; color: var(--dim); font-size: 15px; margin-bottom: 24px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; color: var(--dim); font-size: 15px; margin-bottom: 6px; }
+  select {
+    width: 100%; padding: 14px; font-size: 19px; font-family: inherit;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  .toggles { display: flex; flex-direction: column; gap: 10px; margin: 20px 0; }
+  .tog { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 12px 14px; border-radius: 14px; font-size: 16px; }
+  .tog input { width: 22px; height: 22px; accent-color: var(--green); }
+  .bigbtn {
+    display: block; width: 100%; padding: 20px; margin-top: 8px;
+    font-size: 24px; font-weight: 700; font-family: inherit;
+    background: var(--green); color: #06130c; border: none; border-radius: 18px;
+  }
+  .bigbtn:active { filter: brightness(1.15); }
+  #resumeCard {
+    display: none; background: var(--card2); border: 1px solid var(--gold);
+    border-radius: 14px; padding: 14px; margin-bottom: 18px; text-align: center;
+  }
+  #resumeCard .where { color: var(--gold); font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+  #resumeCard button { background: var(--gold); color: #131006; border: none; border-radius: 12px; padding: 12px 28px; font-size: 18px; font-weight: 700; font-family: inherit; }
+  .warn { color: var(--dim); font-size: 13px; text-align: center; margin-top: 18px; line-height: 1.7; }
+  #noSupport { display: none; background: #3a1f1f; border-radius: 14px; padding: 14px; color: #f0b9b9; font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
+  #hifzOpts { display: none; }
+
+  /* ===== شاشة التسميع ===== */
+  #recite header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  #surahTitle { color: var(--gold); font-size: 22px; font-weight: 700; }
+  #ayahCounter { color: var(--dim); font-size: 16px; }
+  #mic { width: 16px; height: 16px; border-radius: 50%; background: var(--red); transition: background .3s; }
+  #mic.on { background: var(--green); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(76,175,125,.55);} 50% { box-shadow: 0 0 0 12px rgba(76,175,125,0);} }
+
+  #phaseBanner {
+    display: none; text-align: center; font-size: 21px; font-weight: 700;
+    color: #131006; background: var(--gold); padding: 12px 10px;
+  }
+  #phaseBanner.listen { background: #7ec8e3; }
+  #phaseBanner.repeat { background: var(--green); }
+  #phaseBanner.link { background: var(--gold); }
+
+  #verses { flex: 1; overflow-y: auto; padding: 18px 18px 8px; scroll-behavior: smooth; }
+  .bismillah { text-align: center; color: var(--gold); font-size: 26px; margin: 10px 0 16px; }
+  .surahHead { text-align: center; color: var(--gold); font-size: 24px; font-weight: 700; margin: 22px 0 6px; border-top: 1px solid var(--border); padding-top: 18px; }
+  .verse { font-size: 30px; line-height: 2.1; text-align: justify; color: var(--text); animation: fadeIn .5s; }
+  .verse .num { color: var(--gold); font-size: 24px; }
+  .verse.skipped { color: var(--dim); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none;} }
+  #currentBox { margin: 14px 0 6px; background: var(--card2); border: 1px dashed var(--border); border-radius: 16px; padding: 14px 16px; }
+  #currentLabel { color: var(--dim); font-size: 15px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  #wordbar { height: 10px; background: var(--card); border-radius: 6px; overflow: hidden; }
+  #wordbarFill { height: 100%; width: 0%; background: var(--green); border-radius: 6px; transition: width .25s; }
+  #previewText { display: none; font-size: 26px; line-height: 2; color: var(--dim); margin-top: 10px; }
+  #previewText .said { color: var(--text); }
+  #hintBox { display: none; margin-top: 12px; border-top: 1px dashed var(--gold); padding-top: 10px; animation: fadeIn .4s; }
+  #hintLabel { color: var(--gold); font-size: 15px; margin-bottom: 6px; }
+  .hintVerse { font-size: 27px; line-height: 2; color: var(--gold); }
+  .hintVerse .said { color: var(--dim); }
+
+  #heard { min-height: 26px; padding: 4px 18px 8px; color: var(--dim); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
+  #controls {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px;
+    padding: 10px 14px calc(14px + env(safe-area-inset-bottom)); background: var(--card);
+    border-top: 1px solid var(--border);
+  }
+  #controls button {
+    padding: 18px 4px; font-size: 18px; font-weight: 700; font-family: inherit;
+    border: none; border-radius: 14px; color: var(--text); background: var(--card2);
+  }
+  #btnPause.paused { background: var(--green); color: #06130c; }
+  #btnStop { background: #3a2424; color: #f0b9b9; }
+  #btnReplay { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ======= شاشة الإعداد ======= -->
+<section id="setup" class="screen active">
+  <h1>متابع التسميع</h1>
+  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة</div>
+
+  <div id="noSupport">
+    المتصفح الحالي لا يدعم التعرف الصوتي.
+    استخدم <b>متصفح كروم على أندرويد</b> للحصول على أفضل تجربة.
+  </div>
+
+  <div id="resumeCard">
+    <div class="where" id="resumeWhere"></div>
+    <button id="btnResume">متابعة من حيث توقفت</button>
+  </div>
+
+  <div class="field">
+    <label for="modeSel">الوضع</label>
+    <select id="modeSel">
+      <option value="tasmee">🎙 تسميع — أقرأ من حفظي والتطبيق يتابع</option>
+      <option value="hifz">🎧 تحفيظ — أستمع وأردد حتى أحفظ</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="surahSel">السورة</label>
+    <select id="surahSel"></select>
+  </div>
+  <div class="field">
+    <label for="ayahSel">البدء من الآية</label>
+    <select id="ayahSel"></select>
+  </div>
+
+  <div id="hifzOpts">
+    <div class="field">
+      <label for="reciterSel">القارئ</label>
+      <select id="reciterSel">
+        <option value="Husary_Muallim_128kbps">الحصري (المعلم — مخصص للتحفيظ)</option>
+        <option value="Alafasy_64kbps">مشاري العفاسي</option>
+        <option value="Husary_64kbps">محمود الحصري (مرتل)</option>
+        <option value="Minshawy_Murattal_128kbps">المنشاوي (مرتل)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="repsSel">عدد مرات الترديد لكل آية</label>
+      <select id="repsSel">
+        <option value="2">مرتان</option>
+        <option value="3" selected>٣ مرات</option>
+        <option value="5">٥ مرات</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="toggles">
+    <label class="tog"><input type="checkbox" id="optPreview"> عرض نص الآية الحالية أثناء التلاوة (وضع المتابعة)</label>
+    <label class="tog"><input type="checkbox" id="optSound" checked> نغمة تأكيد عند إتمام كل آية</label>
+    <label class="tog"><input type="checkbox" id="optHint" checked> تذكير بالآية بعد ٥ ثوانٍ من الصمت</label>
+  </div>
+
+  <button class="bigbtn" id="btnStart">ابدأ التسميع 🎙️</button>
+
+  <div class="warn">
+    ⚠️ لسلامتك أثناء القيادة: ثبّت الهاتف، وشغّل التطبيق قبل الانطلاق، ولا تنظر إلى الشاشة إلا عند التوقف.<br>
+    يتطلب التعرف الصوتي وصوت القارئ اتصالاً بالإنترنت وإذن الميكروفون.
+  </div>
+</section>
+
+<!-- ======= شاشة التسميع / التحفيظ ======= -->
+<section id="recite" class="screen">
+  <header>
+    <div id="surahTitle"></div>
+    <div id="ayahCounter"></div>
+    <div id="mic"></div>
+  </header>
+
+  <div id="phaseBanner"></div>
+
+  <div id="verses"></div>
+
+  <div id="heard"></div>
+
+  <div id="controls">
+    <button id="btnPause">⏸️ إيقاف</button>
+    <button id="btnReplay">🔊 إعادة</button>
+    <button id="btnSkip">⏭️ تخطي</button>
+    <button id="btnStop">🏁 إنهاء</button>
+  </div>
+</section>
+
+<script src="matcher.js"></script>
+<script>
+'use strict';
+/* =============== الحالة العامة =============== */
+let QURAN = null;
+let mode = 'tasmee';              // 'tasmee' أو 'hifz'
+let session = null;               // جلسة التسميع
+let recog = null;
+let running = false, paused = false, recogHold = false;
+let curSurah = 0, startAyah = 0;
+let wakeLock = null;
+let settings = { preview: false, sound: true, hint: true, reps: 3, reciter: 'Husary_Muallim_128kbps', mode: 'tasmee' };
+let lastActivity = 0, hintShown = false, hintTimer = null;
+const HINT_DELAY = 5000;          // تذكير التسميع
+const HIFZ_STUCK_DELAY = 8000;    // إعادة الصوت في التحفيظ
+const GROUP = 3;                  // آيات كل مقطع ربط
+
+/* حالة التحفيظ */
+let hifz = null;                  // {si, pos, rep, groupStart, phase}
+let hifzSession = null, linkSession = null;
+let player = null;
+
+const $ = id => document.getElementById(id);
+const EN = '٠١٢٣٤٥٦٧٨٩';
+const arNum = n => String(n).replace(/\d/g, d => EN[d]);
+const pad3 = n => String(n).padStart(3, '0');
+const BISMILLAH_TEXT = 'بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ';
+
+/* =============== التحميل والإعداد =============== */
+async function init() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) $('noSupport').style.display = 'block';
+
+  try {
+    const r = await fetch('quran.json');
+    QURAN = (await r.json()).surahs;
+  } catch (e) {
+    alert('تعذّر تحميل نص المصحف: ' + e.message);
+    return;
+  }
+
+  const sel = $('surahSel');
+  QURAN.forEach((s, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = arNum(i + 1) + ' — سورة ' + s.name;
+    sel.appendChild(o);
+  });
+  sel.onchange = fillAyahs;
+  fillAyahs();
+
+  try { Object.assign(settings, JSON.parse(localStorage.getItem('tasmee_settings') || '{}')); } catch (e) {}
+  settings.hint = settings.hint !== false;
+  $('optPreview').checked = settings.preview;
+  $('optSound').checked = settings.sound;
+  $('optHint').checked = settings.hint;
+  $('repsSel').value = String(settings.reps || 3);
+  $('reciterSel').value = settings.reciter || 'Husary_Muallim_128kbps';
+  $('modeSel').value = settings.mode === 'hifz' ? 'hifz' : 'tasmee';
+  $('modeSel').onchange = applyModeUI;
+  applyModeUI();
+
+  let prog = null;
+  try { prog = JSON.parse(localStorage.getItem('tasmee_progress') || 'null'); } catch (e) {}
+  if (prog && QURAN[prog.s] && prog.a < QURAN[prog.s].verses.length) {
+    $('resumeCard').style.display = 'block';
+    const mLabel = prog.m === 'hifz' ? 'تحفيظ' : 'تسميع';
+    $('resumeWhere').textContent = mLabel + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
+    $('btnResume').onclick = () => {
+      $('modeSel').value = prog.m === 'hifz' ? 'hifz' : 'tasmee';
+      applyModeUI();
+      startRecite(prog.s, prog.a);
+    };
+  }
+
+  $('btnStart').onclick = () => startRecite(+sel.value, +$('ayahSel').value);
+  $('btnPause').onclick = togglePause;
+  $('btnSkip').onclick = skipAyah;
+  $('btnStop').onclick = stopRecite;
+  $('btnReplay').onclick = () => { if (mode === 'hifz' && running && !paused) hifzStuck(true); };
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+function applyModeUI() {
+  const m = $('modeSel').value;
+  $('hifzOpts').style.display = m === 'hifz' ? 'block' : 'none';
+  $('btnStart').textContent = m === 'hifz' ? 'ابدأ التحفيظ 🎧' : 'ابدأ التسميع 🎙️';
+}
+
+function fillAyahs() {
+  const s = QURAN[+$('surahSel').value];
+  const sel = $('ayahSel');
+  sel.innerHTML = '';
+  for (let i = 0; i < s.verses.length; i++) {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = 'الآية ' + arNum(i + 1);
+    sel.appendChild(o);
+  }
+}
+
+/* =============== بدء جلسة =============== */
+function startRecite(si, ai) {
+  mode = $('modeSel').value;
+  settings.preview = $('optPreview').checked;
+  settings.sound = $('optSound').checked;
+  settings.hint = $('optHint').checked;
+  settings.reps = +$('repsSel').value || 3;
+  settings.reciter = $('reciterSel').value;
+  settings.mode = mode;
+  localStorage.setItem('tasmee_settings', JSON.stringify(settings));
+
+  curSurah = si; startAyah = ai;
+  $('verses').innerHTML = '';
+  $('heard').textContent = '';
+  $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
+  $('btnReplay').style.display = mode === 'hifz' ? 'block' : 'none';
+  $('phaseBanner').style.display = mode === 'hifz' ? 'block' : 'none';
+
+  switchScreen('recite');
+  running = true; paused = false; recogHold = false;
+  $('btnPause').textContent = '⏸️ إيقاف';
+  $('btnPause').classList.remove('paused');
+  requestWakeLock();
+  lastActivity = Date.now(); hintShown = false;
+  if (hintTimer) clearInterval(hintTimer);
+  hintTimer = setInterval(checkHint, 500);
+
+  if (mode === 'hifz') { startHifz(si, ai); return; }
+
+  /* --- وضع التسميع --- */
+  const noBasmalah = (si === 0 || si === 8);
+  session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
+  if (ai === 0 && !noBasmalah) addBismillah();
+  updateHeader(); renderCurrentBox();
+  startRecognition();
+}
+
+/* =============== وضع التحفيظ =============== */
+function startHifz(si, ai) {
+  hifz = { si, pos: ai, rep: 0, groupStart: ai, phase: 'listen' };
+  hifzSession = null; linkSession = null;
+  renderCurrentBox();
+  startRecognition();
+  hifzListen();
+}
+
+function hifzLen() { return QURAN[hifz.si].verses.length; }
+function hifzVerse() { return QURAN[hifz.si].verses[hifz.pos]; }
+
+function setBanner(txt, cls) {
+  const b = $('phaseBanner');
+  b.textContent = txt;
+  b.className = cls || '';
+}
+
+function hifzHeader() {
+  $('ayahCounter').textContent = 'الآية ' + arNum(hifz.pos + 1) + ' من ' + arNum(hifzLen());
+}
+
+async function hifzListen() {
+  if (!running) return;
+  hifz.phase = 'listen';
+  hifzHeader();
+  setBanner('🎧 استمع للآية ' + arNum(hifz.pos + 1), 'listen');
+  hifzUpdateBox(null);
+  await playAyah(hifz.si, hifz.pos);
+  if (!running || paused) return;
+  hifzRepeat();
+}
+
+function hifzRepeat() {
+  hifz.phase = 'repeat';
+  setBanner('🎙 ردد الآن — الترديد ' + arNum(hifz.rep + 1) + ' من ' + arNum(settings.reps), 'repeat');
+  const needPrefix = (hifz.pos === 0 && hifz.si !== 0 && hifz.si !== 8);
+  hifzSession = new Matcher.Session([hifzVerse()], 0, { noBismillah: !needPrefix });
+  hifzUpdateBox(hifzSession);
+  lastActivity = Date.now();
+}
+
+function hifzUpdateBox(sess) {
+  const p = sess ? sess.progress() : { wordIndex: 0, totalWords: 0 };
+  $('curName').textContent = 'الآية ' + arNum(hifz.pos + 1);
+  $('curCount').textContent = hifz.phase === 'link' ? '🔗 الربط' : 'الترديد ' + arNum(hifz.rep + 1) + ' / ' + arNum(settings.reps);
+  $('wordbarFill').style.width = (p.totalWords ? 100 * p.wordIndex / p.totalWords : 0) + '%';
+  const pv = $('previewText');
+  const show = hifz.phase === 'listen' || (hifz.phase === 'repeat' && hifz.rep === 0);
+  if (show) { pv.style.display = 'block'; pv.innerHTML = hifzVerse(); }
+  else pv.style.display = 'none';
+}
+
+async function hifzRepDone() {
+  chime();
+  hifz.rep++;
+  if (hifz.rep < settings.reps) { hifzListen(); return; }
+  /* أتقن الآية */
+  hifzShowVerse(hifz.pos, false);
+  hifz.pos++; hifz.rep = 0;
+  saveHifzProgress();
+  if (hifz.pos - hifz.groupStart >= GROUP || hifz.pos >= hifzLen()) { hifzLink(); return; }
+  await speak('أحسنت');
+  hifzListen();
+}
+
+async function hifzLink() {
+  hifz.phase = 'link';
+  hifzHeader();
+  const from = hifz.groupStart + 1, to = hifz.pos;
+  setBanner('🔗 سمّع من حفظك: الآيات ' + arNum(from) + ' – ' + arNum(to), 'link');
+  const needPrefix = (hifz.groupStart === 0 && hifz.si !== 0 && hifz.si !== 8);
+  linkSession = new Matcher.Session(QURAN[hifz.si].verses.slice(hifz.groupStart, hifz.pos), 0, { noBismillah: !needPrefix });
+  hifzUpdateBox(linkSession);
+  await speak('أحسنت، الآن سمع الآيات معا من حفظك');
+  lastActivity = Date.now();
+}
+
+async function hifzLinkDone() {
+  chime(true);
+  hifz.groupStart = hifz.pos;
+  saveHifzProgress();
+  if (hifz.pos >= hifzLen()) {
+    setBanner('🎉 اكتمل حفظ السورة، تقبل الله', 'link');
+    running = false;
+    holdRecog();
+    if (hintTimer) { clearInterval(hintTimer); hintTimer = null; }
+    if (hifz.si + 1 < QURAN.length) localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'hifz', s: hifz.si + 1, a: 0 }));
+    await speak('ما شاء الله، اكتمل حفظ السورة، تقبل الله منك');
+    return;
+  }
+  await speak('ممتاز، الآية التالية');
+  hifzListen();
+}
+
+/* عند التعثر: إعادة الصوت */
+async function hifzStuck(manual) {
+  if (hifz.phase === 'repeat' || hifz.phase === 'listen') { hifzListen(); return; }
+  if (hifz.phase === 'link') {
+    const idx = hifz.groupStart + linkSession.progress().ayah;
+    setBanner('🔊 تذكير بالآية ' + arNum(idx + 1) + ' ثم أكمل الربط', 'link');
+    await playAyah(hifz.si, idx);
+    if (running && !paused) setBanner('🔗 أكمل التسميع من حفظك', 'link');
+    lastActivity = Date.now();
+  }
+}
+
+function hifzShowVerse(idx, skipped) {
+  const box = $('currentBox');
+  const d = document.createElement('div');
+  d.className = 'verse quran' + (skipped ? ' skipped' : '');
+  d.innerHTML = QURAN[hifz.si].verses[idx] + ' <span class="num">﴿' + arNum(idx + 1) + '﴾</span>';
+  $('verses').insertBefore(d, box);
+  scrollDown();
+}
+
+function saveHifzProgress() {
+  localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'hifz', s: hifz.si, a: Math.min(hifz.pos, hifzLen() - 1) }));
+}
+
+/* معالجة الكلام في وضع التحفيظ */
+function hifzSpeech(finalText, interim) {
+  const sess = hifz.phase === 'link' ? linkSession : (hifz.phase === 'repeat' ? hifzSession : null);
+  if (!sess) return;
+  if (finalText.trim()) sess.feed(finalText);
+  if (!sess.progress().done && interim.trim()) {
+    const trial = sess.clone();
+    trial.feed(interim);
+    if (trial.progress().done) {
+      sess.feed(interim);
+      try { recog.abort(); } catch (e) {}
+    } else {
+      hifzUpdateBox(trial);
+      if (hifz.phase === 'link' && trial.progress().ayah > sess.progress().ayah) {
+        /* اعتمد الآيات المكتملة ضمن النتيجة المؤقتة */
+        sess.feed(interim);
+        try { recog.abort(); } catch (e) {}
+      }
+    }
+  }
+  hifzUpdateBox(sess);
+  if (hifz.phase === 'link') {
+    const done = sess.progress().ayah;
+    const total = hifz.pos - hifz.groupStart;
+    if (!sess.progress().done) setBanner('🔗 الربط: ' + arNum(Math.min(done + 1, total)) + ' من ' + arNum(total), 'link');
+  }
+  if (sess.progress().done) {
+    if (hifz.phase === 'link') hifzLinkDone();
+    else hifzRepDone();
+  }
+}
+
+/* =============== الصوت (القارئ + النطق) =============== */
+function playAyah(si, ai) {
+  return new Promise(resolve => {
+    holdRecog();
+    if (!player) player = new Audio();
+    let fin = false;
+    const end = () => {
+      if (fin) return; fin = true;
+      player.onended = player.onerror = null;
+      releaseRecog();
+      lastActivity = Date.now();
+      resolve();
+    };
+    player.src = 'https://everyayah.com/data/' + settings.reciter + '/' + pad3(si + 1) + pad3(ai + 1) + '.mp3';
+    player.onended = end;
+    player.onerror = () => { setBanner('⚠️ تعذر تشغيل الصوت — تحقق من الإنترنت', ''); setTimeout(end, 1500); };
+    player.play().catch(() => setTimeout(end, 500));
+  });
+}
+
+function speak(txt) {
+  return new Promise(resolve => {
+    if (!('speechSynthesis' in window)) return resolve();
+    holdRecog();
+    let fin = false;
+    const end = () => { if (fin) return; fin = true; releaseRecog(); resolve(); };
+    try {
+      const u = new SpeechSynthesisUtterance(txt);
+      u.lang = 'ar-SA'; u.rate = 1.05;
+      u.onend = end; u.onerror = end;
+      speechSynthesis.speak(u);
+      setTimeout(end, 5000);
+    } catch (e) { end(); }
+  });
+}
+
+function holdRecog() { recogHold = true; try { recog && recog.abort(); } catch (e) {} }
+function releaseRecog() {
+  recogHold = false;
+  if (running && !paused) { try { recog.start(); } catch (e) {} }
+}
+
+/* =============== تذكير الصمت =============== */
+function checkHint() {
+  if (!running || paused || recogHold) return;
+  const silent = Date.now() - lastActivity;
+  if (mode === 'hifz') {
+    if ((hifz.phase === 'repeat' || hifz.phase === 'link') && silent >= HIFZ_STUCK_DELAY) {
+      lastActivity = Date.now();
+      hifzStuck(false);
+    }
+    return;
+  }
+  if (!settings.hint || hintShown) return;
+  if (session.progress().done) return;
+  if (silent >= HINT_DELAY) showHint();
+}
+
+function showHint() {
+  const p = session.progress();
+  if (p.done) return;
+  let hb = $('hintBox');
+  if (!hb) {
+    hb = document.createElement('div');
+    hb.id = 'hintBox';
+    $('currentBox').appendChild(hb);
+  }
+  const disp = QURAN[curSurah].verses[p.ayah].split(' ');
+  const cut = Math.round((p.totalWords ? p.wordIndex / p.totalWords : 0) * disp.length);
+  hb.innerHTML = '<div id="hintLabel">💡 تذكير — الآية ' + arNum(p.ayah + 1) + '</div>' +
+    '<div class="hintVerse quran"><span class="said">' + disp.slice(0, cut).join(' ') + '</span> ' + disp.slice(cut).join(' ') + '</div>';
+  hb.style.display = 'block';
+  hintShown = true;
+  scrollDown();
+  try { navigator.vibrate && navigator.vibrate(150); } catch (e) {}
+}
+
+function hideHint() {
+  const hb = $('hintBox');
+  if (hb) hb.style.display = 'none';
+  hintShown = false;
+}
+
+/* =============== واجهة التسميع =============== */
+function switchScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+function updateHeader() {
+  const p = session.progress();
+  const total = QURAN[curSurah].verses.length;
+  $('ayahCounter').textContent = p.done ? 'اكتملت ✓' : 'الآية ' + arNum(p.ayah + 1) + ' من ' + arNum(total);
+}
+
+function renderCurrentBox() {
+  let box = $('currentBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'currentBox';
+    box.innerHTML = '<div id="currentLabel"><span id="curName"></span><span id="curCount"></span></div>' +
+                    '<div id="wordbar"><div id="wordbarFill"></div></div>' +
+                    '<div id="previewText" class="quran"></div>';
+    $('verses').appendChild(box);
+  } else {
+    $('verses').appendChild(box);
+  }
+  if (mode === 'hifz') hifzUpdateBox(null);
+  else updateCurrentBox(session);
+}
+
+function updateCurrentBox(sess) {
+  const p = sess.progress();
+  if (p.done) return;
+  $('curName').textContent = 'الآية ' + arNum(p.ayah + 1) + ' …';
+  $('curCount').textContent = arNum(p.wordIndex) + ' / ' + arNum(p.totalWords) + ' كلمة';
+  $('wordbarFill').style.width = (p.totalWords ? 100 * p.wordIndex / p.totalWords : 0) + '%';
+  const pv = $('previewText');
+  if (settings.preview) {
+    pv.style.display = 'block';
+    const disp = QURAN[curSurah].verses[p.ayah].split(' ');
+    const ratio = p.totalWords ? p.wordIndex / p.totalWords : 0;
+    const cut = Math.round(ratio * disp.length);
+    pv.innerHTML = '<span class="said">' + disp.slice(0, cut).join(' ') + '</span> ' + disp.slice(cut).join(' ');
+  } else pv.style.display = 'none';
+}
+
+function addBismillah() {
+  const d = document.createElement('div');
+  d.className = 'bismillah quran';
+  d.textContent = BISMILLAH_TEXT;
+  $('verses').appendChild(d);
+}
+
+function showVerse(idx, skipped) {
+  const box = $('currentBox');
+  const d = document.createElement('div');
+  d.className = 'verse quran' + (skipped ? ' skipped' : '');
+  d.innerHTML = QURAN[curSurah].verses[idx] + ' <span class="num">﴿' + arNum(idx + 1) + '﴾</span>';
+  $('verses').insertBefore(d, box);
+  if (!skipped && settings.sound) chime();
+  saveProgress();
+  scrollDown();
+}
+
+function scrollDown() {
+  const v = $('verses');
+  v.scrollTop = v.scrollHeight;
+}
+
+function saveProgress() {
+  const p = session.progress();
+  if (p.done) {
+    if (curSurah + 1 < QURAN.length) localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'tasmee', s: curSurah + 1, a: 0 }));
+    else localStorage.removeItem('tasmee_progress');
+  } else {
+    localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'tasmee', s: curSurah, a: p.ayah }));
+  }
+}
+
+function handleCompleted(list) {
+  for (const c of list) showVerse(c.index, c.skipped);
+  if (list.length) {
+    updateHeader();
+    if (session.progress().done) nextSurah();
+  }
+}
+
+function nextSurah() {
+  if (settings.sound) chime(true);
+  if (curSurah + 1 >= QURAN.length) {
+    $('currentBox') && $('currentBox').remove();
+    const d = document.createElement('div');
+    d.style.cssText = 'text-align:center;color:var(--green);font-size:24px;font-weight:700;padding:20px;';
+    d.textContent = 'ختمت المصحف، تقبل الله 🌙';
+    $('verses').appendChild(d);
+    return;
+  }
+  curSurah++;
+  const noBasmalah = (curSurah === 8);
+  session = new Matcher.Session(QURAN[curSurah].verses, 0, { noBismillah: noBasmalah });
+  const h = document.createElement('div');
+  h.className = 'surahHead';
+  h.textContent = 'سورة ' + QURAN[curSurah].name;
+  const box = $('currentBox');
+  $('verses').insertBefore(h, box);
+  if (!noBasmalah) {
+    const b = document.createElement('div');
+    b.className = 'bismillah quran';
+    b.textContent = BISMILLAH_TEXT;
+    $('verses').insertBefore(b, box);
+  }
+  $('surahTitle').textContent = 'سورة ' + QURAN[curSurah].name;
+  updateHeader(); updateCurrentBox(session); scrollDown();
+}
+
+/* =============== التعرف الصوتي =============== */
+function startRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  recog = new SR();
+  recog.lang = 'ar-SA';
+  recog.continuous = true;
+  recog.interimResults = true;
+  recog.maxAlternatives = 1;
+
+  recog.onstart = () => $('mic').classList.add('on');
+  recog.onresult = e => {
+    lastActivity = Date.now();
+    if (hintShown) hideHint();
+    let finalText = '', interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += ' ' + t;
+      else interim += ' ' + t;
+    }
+    const heard = (finalText + ' ' + interim).trim();
+    if (heard) $('heard').textContent = '🎙 ' + heard.slice(-80);
+
+    if (mode === 'hifz') { hifzSpeech(finalText, interim); return; }
+
+    /* --- وضع التسميع --- */
+    if (finalText.trim()) {
+      const completed = session.feed(finalText);
+      handleCompleted(completed);
+      updateCurrentBox(session); updateHeader();
+    }
+    if (interim.trim()) {
+      const trial = session.clone();
+      const completed = trial.feed(interim);
+      if (completed.length) {
+        session.feed(interim);
+        handleCompleted(completed);
+        updateCurrentBox(session); updateHeader();
+        try { recog.abort(); } catch (err) {}
+      } else {
+        updateCurrentBox(trial);
+      }
+    }
+  };
+  recog.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      running = false;
+      $('mic').classList.remove('on');
+      alert('لم يُسمح باستخدام الميكروفون. فعّل الإذن من إعدادات المتصفح.');
+    }
+  };
+  recog.onend = () => {
+    $('mic').classList.remove('on');
+    if (running && !paused && !recogHold) setTimeout(() => { try { recog.start(); } catch (e) {} }, 250);
+  };
+  try { recog.start(); } catch (e) {}
+}
+
+function togglePause() {
+  if (!running) return;
+  paused = !paused;
+  const b = $('btnPause');
+  if (paused) {
+    try { recog.stop(); } catch (e) {}
+    try { player && player.pause(); } catch (e) {}
+    try { speechSynthesis.cancel(); } catch (e) {}
+    b.textContent = '▶️ استئناف';
+    b.classList.add('paused');
+  } else {
+    b.textContent = '⏸️ إيقاف';
+    b.classList.remove('paused');
+    lastActivity = Date.now();
+    if (mode === 'hifz' && hifz.phase === 'listen') { hifzListen(); return; }
+    try { recog.start(); } catch (e) {}
+  }
+}
+
+function skipAyah() {
+  if (!running) return;
+  if (mode === 'hifz') {
+    if (hifz.phase === 'link') { hifzLinkDone(); return; }
+    hifzShowVerse(hifz.pos, true);
+    hifz.pos++; hifz.rep = 0;
+    saveHifzProgress();
+    if (hifz.pos - hifz.groupStart >= GROUP || hifz.pos >= hifzLen()) hifzLink();
+    else hifzListen();
+    return;
+  }
+  if (!session || session.progress().done) return;
+  hideHint(); lastActivity = Date.now();
+  handleCompleted(session.skipAyah());
+  updateCurrentBox(session); updateHeader();
+}
+
+function stopRecite() {
+  running = false;
+  if (hintTimer) { clearInterval(hintTimer); hintTimer = null; }
+  try { recog && recog.stop(); } catch (e) {}
+  try { player && player.pause(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) {}
+  releaseWakeLock();
+  if (mode === 'hifz') { if (hifz) saveHifzProgress(); }
+  else saveProgress();
+  location.reload();
+}
+
+/* =============== أدوات =============== */
+function chime(high) {
+  if (!settings.sound) return;
+  try {
+    const ctx = chime.ctx || (chime.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = high ? 880 : 660;
+    g.gain.setValueAtTime(0.25, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    o.start(); o.stop(ctx.currentTime + 0.4);
+  } catch (e) {}
+}
+
+async function requestWakeLock() {
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function releaseWakeLock() { try { wakeLock && wakeLock.release(); wakeLock = null; } catch (e) {} }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && running) requestWakeLock();
+});
+
+init();
+/* v2.0 — وضع التحفيظ: تلقين وترديد وربط */
+</script>
+</body>
+</html>
