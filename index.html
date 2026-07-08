@@ -49,12 +49,15 @@
     background: var(--green); color: #06130c; border: none; border-radius: 18px;
   }
   .bigbtn:active { filter: brightness(1.15); }
-  #resumeCard {
+  .resumeCard {
     display: none; background: var(--card2); border: 1px solid var(--gold);
-    border-radius: 14px; padding: 14px; margin-bottom: 18px; text-align: center;
+    border-radius: 14px; padding: 14px; margin-bottom: 12px; text-align: center;
   }
-  #resumeCard .where { color: var(--gold); font-size: 20px; font-weight: 700; margin-bottom: 10px; }
-  #resumeCard button { background: var(--gold); color: #131006; border: none; border-radius: 12px; padding: 12px 28px; font-size: 18px; font-weight: 700; font-family: inherit; }
+  .resumeCard .where { color: var(--gold); font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+  .resumeCard button { background: var(--gold); color: #131006; border: none; border-radius: 12px; padding: 12px 28px; font-size: 18px; font-weight: 700; font-family: inherit; }
+  .resumeCard.hifzCard { border-color: #7ec8e3; }
+  .resumeCard.hifzCard .where { color: #7ec8e3; }
+  .resumeCard.hifzCard button { background: #7ec8e3; }
   .warn { color: var(--dim); font-size: 13px; text-align: center; margin-top: 18px; line-height: 1.7; }
   #noSupport { display: none; background: #3a1f1f; border-radius: 14px; padding: 14px; color: #f0b9b9; font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
   #hifzOpts { display: none; }
@@ -129,9 +132,13 @@
     📲 للتثبيت على آيفون: اضغط زر المشاركة <b>⎋</b> في سفاري ثم «إضافة إلى الصفحة الرئيسية».
   </div>
 
-  <div id="resumeCard">
-    <div class="where" id="resumeWhere"></div>
-    <button id="btnResume">متابعة من حيث توقفت</button>
+  <div id="resumeTasmee" class="resumeCard">
+    <div class="where" id="whereTasmee"></div>
+    <button id="btnResumeTasmee">🎙 متابعة التسميع</button>
+  </div>
+  <div id="resumeHifz" class="resumeCard hifzCard">
+    <div class="where" id="whereHifz"></div>
+    <button id="btnResumeHifz">🎧 متابعة التحفيظ</button>
   </div>
 
   <div class="field">
@@ -255,6 +262,25 @@ const pad3 = n => String(n).padStart(3, '0');
 const BISMILLAH_TEXT = 'بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ';
 
 /* =============== التحميل والإعداد =============== */
+const PROG_TASMEE = 'tasmee_prog_tasmee';
+const PROG_HIFZ = 'tasmee_prog_hifz';
+
+function setupResume(key, m, cardId, whereId, btnId, label) {
+  let prog = null;
+  try { prog = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+  if (!prog || !QURAN[prog.s] || prog.a >= QURAN[prog.s].verses.length) return;
+  $(cardId).style.display = 'block';
+  $(whereId).textContent = label + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
+  $(btnId).onclick = () => {
+    $('modeSel').value = m;
+    applyModeUI();
+    $('surahSel').value = prog.s;
+    fillAyahs();
+    $('ayahSel').value = prog.a;
+    startRecite(prog.s, prog.a);
+  };
+}
+
 async function init() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) $('noSupport').style.display = 'block';
@@ -290,21 +316,18 @@ async function init() {
   $('modeSel').onchange = applyModeUI;
   applyModeUI();
 
-  let prog = null;
-  try { prog = JSON.parse(localStorage.getItem('tasmee_progress') || 'null'); } catch (e) {}
-  if (prog && QURAN[prog.s] && prog.a < QURAN[prog.s].verses.length) {
-    $('resumeCard').style.display = 'block';
-    const mLabel = prog.m === 'hifz' ? 'تحفيظ' : 'تسميع';
-    $('resumeWhere').textContent = mLabel + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
-    $('btnResume').onclick = () => {
-      $('modeSel').value = prog.m === 'hifz' ? 'hifz' : 'tasmee';
-      applyModeUI();
-      $('surahSel').value = prog.s;
-      fillAyahs();
-      $('ayahSel').value = prog.a;
-      startRecite(prog.s, prog.a);
-    };
-  }
+  /* ترحيل الصيغة القديمة (مفتاح مشترك) إلى مفتاح لكل وضع */
+  try {
+    const legacy = JSON.parse(localStorage.getItem('tasmee_progress') || 'null');
+    if (legacy) {
+      const k = legacy.m === 'hifz' ? PROG_HIFZ : PROG_TASMEE;
+      if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ s: legacy.s, a: legacy.a }));
+      localStorage.removeItem('tasmee_progress');
+    }
+  } catch (e) {}
+
+  setupResume(PROG_TASMEE, 'tasmee', 'resumeTasmee', 'whereTasmee', 'btnResumeTasmee', 'تسميع');
+  setupResume(PROG_HIFZ, 'hifz', 'resumeHifz', 'whereHifz', 'btnResumeHifz', 'تحفيظ');
 
   $('btnStart').onclick = () => startRecite(+sel.value, +$('ayahSel').value);
   $('btnPause').onclick = togglePause;
@@ -464,7 +487,7 @@ async function hifzFinish() {
 
 function saveHifzProgress() {
   if (!hifz) return;
-  localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'hifz', s: hifz.si, a: Math.min(hifz.pos, hifz.to) }));
+  localStorage.setItem(PROG_HIFZ, JSON.stringify({ s: hifz.si, a: Math.min(hifz.pos, hifz.to) }));
 }
 
 /* =============== تشغيل الصوت =============== */
@@ -645,10 +668,10 @@ function scrollDown() {
 function saveProgress() {
   const p = session.progress();
   if (p.done) {
-    if (curSurah + 1 < QURAN.length) localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'tasmee', s: curSurah + 1, a: 0 }));
-    else localStorage.removeItem('tasmee_progress');
+    if (curSurah + 1 < QURAN.length) localStorage.setItem(PROG_TASMEE, JSON.stringify({ s: curSurah + 1, a: 0 }));
+    else localStorage.removeItem(PROG_TASMEE);
   } else {
-    localStorage.setItem('tasmee_progress', JSON.stringify({ m: 'tasmee', s: curSurah, a: p.ayah }));
+    localStorage.setItem(PROG_TASMEE, JSON.stringify({ s: curSurah, a: p.ayah }));
   }
 }
 
@@ -853,7 +876,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.1 — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v3.2 — حفظ موضع التوقف لكل وضع على حدة — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
