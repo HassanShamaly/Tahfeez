@@ -140,6 +140,10 @@
     <div class="where" id="whereHifz"></div>
     <button id="btnResumeHifz">🎧 متابعة التحفيظ</button>
   </div>
+  <div id="reviewCard" class="resumeCard">
+    <div class="where" id="whereReview"></div>
+    <button id="btnReview">🎙 سمّع ما حفظته الآن</button>
+  </div>
 
   <div class="field">
     <label for="modeSel">الوضع</label>
@@ -160,7 +164,7 @@
       <select id="ayahSel"></select>
     </div>
     <div class="field" id="ayahToField" style="display:none">
-      <label for="ayahToSel">إلى الآية</label>
+      <label for="ayahToSel" id="ayahToLabel">إلى الآية</label>
       <select id="ayahToSel"></select>
     </div>
   </div>
@@ -322,8 +326,9 @@ function loadModeUI(m) {
   $('repsSel').value = String(o.reps || 3);
   if (m === 'hifz') {
     $('passSel').value = String(o.passes || 0);
-    if (o.to != null && s === o.s && o.to < QURAN[s].verses.length && o.to >= a) $('ayahToSel').value = o.to;
+    $('ayahToSel').value = (o.to != null && o.to >= 0 && s === o.s && o.to < QURAN[s].verses.length && o.to >= a) ? o.to : '-1';
   } else {
+    $('ayahToSel').value = '-1';
     $('optPreview').checked = !!o.preview;
     $('optSound').checked = o.sound !== false;
     $('optHint').checked = o.hint !== false;
@@ -334,6 +339,7 @@ const HINT_DELAY = 5000;
 
 /* حالة التحفيظ (استماع وتكرار) */
 let hifz = null;                  // {si, from, to, pos, rep, pass}
+let reviewTo = -1;                // نهاية نطاق مراجعة التسميع (-1 = تسميع عادي)
 let player = null, curResolve = null, pendingResume = null, tapBusy = false;
 
 const $ = id => document.getElementById(id);
@@ -360,6 +366,29 @@ function setupResume(key, m, cardId, whereId, btnId, label) {
     fillAyahs();
     $('ayahSel').value = prog.a;
     startRecite(prog.s, prog.a);
+  };
+}
+
+/* بطاقة تسميع آخر مقطع تحفيظ كمراجعة معزولة */
+function setupReviewCard() {
+  const h = settings.hifz;
+  let prog = null;
+  try { prog = JSON.parse(localStorage.getItem(PROG_HIFZ) || 'null'); } catch (e) {}
+  if (!prog || h.s == null || !QURAN[h.s]) return;
+  const len = QURAN[h.s].verses.length;
+  const from = Math.min(h.a || 0, len - 1);
+  const to = (h.to != null && h.to >= from && h.to < len) ? h.to : len - 1;
+  $('reviewCard').style.display = 'block';
+  $('whereReview').textContent = 'مراجعة مقطع التحفيظ: سورة ' + QURAN[h.s].name + ' — الآيات ' + arNum(from + 1) + '–' + arNum(to + 1);
+  $('btnReview').onclick = () => {
+    $('modeSel').value = 'tasmee';
+    prevMode = 'tasmee'; settings.mode = 'tasmee';
+    applyModeUI();
+    $('surahSel').value = h.s;
+    fillAyahs();
+    $('ayahSel').value = from;
+    $('ayahToSel').value = to;
+    startRecite(h.s, from);
   };
 }
 
@@ -409,6 +438,7 @@ async function init() {
 
   setupResume(PROG_TASMEE, 'tasmee', 'resumeTasmee', 'whereTasmee', 'btnResumeTasmee', 'تسميع');
   setupResume(PROG_HIFZ, 'hifz', 'resumeHifz', 'whereHifz', 'btnResumeHifz', 'تحفيظ');
+  setupReviewCard();
 
   $('btnStart').onclick = () => startRecite(+sel.value, +$('ayahSel').value);
   $('btnPause').onclick = togglePause;
@@ -437,7 +467,8 @@ function applyModeUI() {
   const m = $('modeSel').value;
   const h = m === 'hifz';
   $('hifzOpts').style.display = h ? 'block' : 'none';
-  $('ayahToField').style.display = h ? 'block' : 'none';
+  $('ayahToField').style.display = 'block';
+  $('ayahToLabel').textContent = h ? 'إلى الآية' : 'إلى الآية (مراجعة لا تغيّر موضعك)';
   $('togglesBox').style.display = h ? 'none' : 'flex';
   $('ayahFromLabel').textContent = h ? 'من الآية' : 'البدء من الآية';
   $('repsLabel').textContent = h ? 'تكرار كل آية' : 'تكرار السماع عند الضغط على آية';
@@ -449,6 +480,10 @@ function fillAyahs() {
   const s = QURAN[+$('surahSel').value];
   const sel = $('ayahSel'), selTo = $('ayahToSel');
   sel.innerHTML = ''; selTo.innerHTML = '';
+  const end = document.createElement('option');
+  end.value = -1;
+  end.textContent = '🔚 حتى نهاية السورة';
+  selTo.appendChild(end);
   for (let i = 0; i < s.verses.length; i++) {
     const o = document.createElement('option');
     o.value = i;
@@ -456,7 +491,7 @@ function fillAyahs() {
     sel.appendChild(o);
     selTo.appendChild(o.cloneNode(true));
   }
-  selTo.value = s.verses.length - 1;
+  selTo.value = '-1';
 }
 
 /* =============== بدء جلسة =============== */
@@ -491,9 +526,15 @@ function startRecite(si, ai) {
   lastActivity = Date.now(); hintShown = false;
   if (hintTimer) clearInterval(hintTimer);
 
-  if (mode === 'hifz') { startHifz(si, ai); return; }
+  if (mode === 'hifz') { reviewTo = -1; startHifz(si, ai); return; }
 
   /* --- وضع التسميع --- */
+  reviewTo = +$('ayahToSel').value;
+  if (!(reviewTo >= ai && reviewTo < QURAN[si].verses.length)) reviewTo = -1;
+  if (reviewTo >= 0) {
+    $('phaseBanner').style.display = 'block';
+    setBanner('🎙 مراجعة الآيات ' + arNum(ai + 1) + '–' + arNum(reviewTo + 1) + ' — لا تغيّر موضعك المحفوظ', 'link');
+  }
   hintTimer = setInterval(checkHint, 500);
   const noBasmalah = (si === 0 || si === 8);
   session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
@@ -754,6 +795,7 @@ function scrollDown() {
 }
 
 function saveProgress() {
+  if (reviewTo >= 0) return; // جلسة مراجعة — لا تمسّ الموضع المحفوظ
   const p = session.progress();
   if (p.done) {
     if (curSurah + 1 < QURAN.length) localStorage.setItem(PROG_TASMEE, JSON.stringify({ s: curSurah + 1, a: 0 }));
@@ -765,10 +807,22 @@ function saveProgress() {
 
 function handleCompleted(list) {
   for (const c of list) showVerse(c.index, c.skipped);
-  if (list.length) {
-    updateHeader();
-    if (session.progress().done) nextSurah();
-  }
+  if (!list.length) return;
+  updateHeader();
+  if (reviewTo >= 0 && (session.progress().done || session.progress().ayah > reviewTo)) { finishReview(); return; }
+  if (session.progress().done) nextSurah();
+}
+
+function finishReview() {
+  running = false;
+  try { recog && recog.stop(); } catch (e) {}
+  if (hintTimer) { clearInterval(hintTimer); hintTimer = null; }
+  hideHint();
+  const box = $('currentBox');
+  if (box) box.remove();
+  setBanner('✅ أتممت مراجعة المقطع — تقبل الله', 'link');
+  chime(true);
+  scrollDown();
 }
 
 function nextSurah() {
@@ -964,7 +1018,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.3 — واجهة وإعدادات مستقلة لكل وضع — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v3.4 — تسميع مراجعة بنطاق محدد لا يغيّر الموضع المحفوظ — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
