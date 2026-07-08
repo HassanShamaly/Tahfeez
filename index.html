@@ -156,7 +156,7 @@
 
   <div class="row2">
     <div class="field">
-      <label for="ayahSel">من الآية</label>
+      <label for="ayahSel" id="ayahFromLabel">من الآية</label>
       <select id="ayahSel"></select>
     </div>
     <div class="field" id="ayahToField" style="display:none">
@@ -176,7 +176,7 @@
   </div>
 
   <div class="field">
-    <label for="repsSel">تكرار سماع الآية (عند الضغط عليها وفي التحفيظ)</label>
+    <label for="repsSel" id="repsLabel">تكرار سماع الآية</label>
     <select id="repsSel">
       <option value="1">مرة واحدة</option>
       <option value="2">مرتان</option>
@@ -200,7 +200,7 @@
     </div>
   </div>
 
-  <div class="toggles">
+  <div class="toggles" id="togglesBox">
     <label class="tog"><input type="checkbox" id="optPreview"> عرض نص الآية الحالية أثناء التلاوة (وضع المتابعة)</label>
     <label class="tog"><input type="checkbox" id="optSound" checked> نغمة تأكيد عند إتمام كل آية</label>
     <label class="tog"><input type="checkbox" id="optHint" checked> تذكير بالآية بعد ٥ ثوانٍ من الصمت</label>
@@ -247,7 +247,88 @@ let recog = null;
 let running = false, paused = false, recogHold = false;
 let curSurah = 0, startAyah = 0;
 let wakeLock = null;
-let settings = { preview: false, sound: true, hint: true, reps: 3, passes: 0, reciter: 'Husary_Muallim_128kbps', mode: 'tasmee' };
+function defaultSettings() {
+  return {
+    mode: 'tasmee',
+    /* قيم التشغيل الحالية (تُملأ من إعدادات الوضع عند البدء) */
+    preview: false, sound: true, hint: true, reps: 3, passes: 0, reciter: 'Husary_Muallim_128kbps',
+    /* إعدادات محفوظة لكل وضع على حدة */
+    tasmee: { s: 0, a: 0, preview: false, sound: true, hint: true, reciter: 'Husary_Muallim_128kbps', reps: 3 },
+    hifz:   { s: 0, a: 0, to: null, reciter: 'Husary_Muallim_128kbps', reps: 3, passes: 0 }
+  };
+}
+let settings = defaultSettings();
+let prevMode = 'tasmee';
+const SET_KEY = 'tasmee_settings_v2';
+
+function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) {} }
+
+function loadSettings() {
+  const D = defaultSettings();
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SET_KEY) || 'null'); } catch (e) {}
+  if (!s) {
+    /* ترحيل الإعدادات القديمة المسطحة */
+    let old = null;
+    try { old = JSON.parse(localStorage.getItem('tasmee_settings') || 'null'); } catch (e) {}
+    if (old) {
+      D.mode = old.mode === 'hifz' ? 'hifz' : 'tasmee';
+      D.tasmee.preview = !!old.preview;
+      D.tasmee.sound = old.sound !== false;
+      D.tasmee.hint = old.hint !== false;
+      D.tasmee.reciter = D.hifz.reciter = old.reciter || D.hifz.reciter;
+      D.tasmee.reps = D.hifz.reps = +old.reps || 3;
+      D.hifz.passes = +old.passes || 0;
+      localStorage.removeItem('tasmee_settings');
+    }
+    return D;
+  }
+  D.mode = s.mode === 'hifz' ? 'hifz' : 'tasmee';
+  Object.assign(D.tasmee, s.tasmee || {});
+  Object.assign(D.hifz, s.hifz || {});
+  return D;
+}
+
+/* حفظ اختيارات الشاشة في إعدادات الوضع */
+function captureModeUI(m) {
+  const o = settings[m];
+  if (!o) return;
+  o.s = +$('surahSel').value; o.a = +$('ayahSel').value;
+  o.reciter = $('reciterSel').value;
+  o.reps = +$('repsSel').value || 3;
+  if (m === 'hifz') {
+    o.to = +$('ayahToSel').value;
+    o.passes = +$('passSel').value || 0;
+  } else {
+    o.preview = $('optPreview').checked;
+    o.sound = $('optSound').checked;
+    o.hint = $('optHint').checked;
+  }
+  saveSettings();
+}
+
+/* استرجاع اختيارات الوضع + آخر موضع توقف */
+function loadModeUI(m) {
+  const o = settings[m];
+  let s = o.s || 0, a = o.a || 0;
+  let prog = null;
+  try { prog = JSON.parse(localStorage.getItem(m === 'hifz' ? PROG_HIFZ : PROG_TASMEE) || 'null'); } catch (e) {}
+  if (prog && QURAN[prog.s] && prog.a < QURAN[prog.s].verses.length) { s = prog.s; a = prog.a; }
+  if (!QURAN[s]) { s = 0; a = 0; }
+  $('surahSel').value = s;
+  fillAyahs();
+  if (a < QURAN[s].verses.length) $('ayahSel').value = a;
+  $('reciterSel').value = o.reciter || 'Husary_Muallim_128kbps';
+  $('repsSel').value = String(o.reps || 3);
+  if (m === 'hifz') {
+    $('passSel').value = String(o.passes || 0);
+    if (o.to != null && s === o.s && o.to < QURAN[s].verses.length && o.to >= a) $('ayahToSel').value = o.to;
+  } else {
+    $('optPreview').checked = !!o.preview;
+    $('optSound').checked = o.sound !== false;
+    $('optHint').checked = o.hint !== false;
+  }
+}
 let lastActivity = 0, hintShown = false, hintTimer = null;
 const HINT_DELAY = 5000;
 
@@ -273,6 +354,7 @@ function setupResume(key, m, cardId, whereId, btnId, label) {
   $(whereId).textContent = label + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
   $(btnId).onclick = () => {
     $('modeSel').value = m;
+    prevMode = m; settings.mode = m;
     applyModeUI();
     $('surahSel').value = prog.s;
     fillAyahs();
@@ -303,17 +385,16 @@ async function init() {
   sel.onchange = fillAyahs;
   fillAyahs();
 
-  try { Object.assign(settings, JSON.parse(localStorage.getItem('tasmee_settings') || '{}')); } catch (e) {}
-  settings.hint = settings.hint !== false;
-  settings.passes = +settings.passes || 0;
-  $('optPreview').checked = settings.preview;
-  $('optSound').checked = settings.sound;
-  $('optHint').checked = settings.hint;
-  $('repsSel').value = String(settings.reps || 3);
-  $('passSel').value = String(settings.passes);
-  $('reciterSel').value = settings.reciter || 'Husary_Muallim_128kbps';
-  $('modeSel').value = settings.mode === 'hifz' ? 'hifz' : 'tasmee';
-  $('modeSel').onchange = applyModeUI;
+  settings = loadSettings();
+  prevMode = settings.mode;
+  $('modeSel').value = prevMode;
+  $('modeSel').onchange = () => {
+    captureModeUI(prevMode);
+    prevMode = $('modeSel').value;
+    settings.mode = prevMode;
+    saveSettings();
+    applyModeUI();
+  };
   applyModeUI();
 
   /* ترحيل الصيغة القديمة (مفتاح مشترك) إلى مفتاح لكل وضع */
@@ -354,9 +435,14 @@ async function init() {
 
 function applyModeUI() {
   const m = $('modeSel').value;
-  $('hifzOpts').style.display = m === 'hifz' ? 'block' : 'none';
-  $('ayahToField').style.display = m === 'hifz' ? 'block' : 'none';
-  $('btnStart').textContent = m === 'hifz' ? 'ابدأ الاستماع والتكرار 🎧' : 'ابدأ التسميع 🎙️';
+  const h = m === 'hifz';
+  $('hifzOpts').style.display = h ? 'block' : 'none';
+  $('ayahToField').style.display = h ? 'block' : 'none';
+  $('togglesBox').style.display = h ? 'none' : 'flex';
+  $('ayahFromLabel').textContent = h ? 'من الآية' : 'البدء من الآية';
+  $('repsLabel').textContent = h ? 'تكرار كل آية' : 'تكرار السماع عند الضغط على آية';
+  $('btnStart').textContent = h ? 'ابدأ الاستماع والتكرار 🎧' : 'ابدأ التسميع 🎙️';
+  loadModeUI(m);
 }
 
 function fillAyahs() {
@@ -376,14 +462,16 @@ function fillAyahs() {
 /* =============== بدء جلسة =============== */
 function startRecite(si, ai) {
   mode = $('modeSel').value;
-  settings.preview = $('optPreview').checked;
-  settings.sound = $('optSound').checked;
-  settings.hint = $('optHint').checked;
-  settings.reps = +$('repsSel').value || 3;
-  settings.passes = +$('passSel').value || 0;
-  settings.reciter = $('reciterSel').value;
+  captureModeUI(mode);
   settings.mode = mode;
-  localStorage.setItem('tasmee_settings', JSON.stringify(settings));
+  const cur = settings[mode];
+  settings.reciter = cur.reciter;
+  settings.reps = +cur.reps || 3;
+  settings.passes = mode === 'hifz' ? (+cur.passes || 0) : 0;
+  settings.preview = mode === 'tasmee' && !!cur.preview;
+  settings.sound = mode === 'tasmee' ? cur.sound !== false : true;
+  settings.hint = mode === 'tasmee' && cur.hint !== false;
+  saveSettings();
 
   curSurah = si; startAyah = ai;
   $('verses').innerHTML = '';
@@ -876,7 +964,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.2 — حفظ موضع التوقف لكل وضع على حدة — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v3.3 — واجهة وإعدادات مستقلة لكل وضع — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
