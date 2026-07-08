@@ -124,6 +124,11 @@
     استخدم <b>متصفح كروم على أندرويد</b> للحصول على أفضل تجربة.
   </div>
 
+  <button id="btnInstall" class="bigbtn" style="display:none;background:var(--gold);margin-bottom:18px">📲 ثبّت التطبيق على هاتفك</button>
+  <div id="iosTip" style="display:none;background:var(--card2);border-radius:14px;padding:12px;font-size:14px;color:var(--dim);line-height:1.8;margin-bottom:16px">
+    📲 للتثبيت على آيفون: اضغط زر المشاركة <b>⎋</b> في سفاري ثم «إضافة إلى الصفحة الرئيسية».
+  </div>
+
   <div id="resumeCard">
     <div class="where" id="resumeWhere"></div>
     <button id="btnResume">متابعة من حيث توقفت</button>
@@ -319,6 +324,9 @@ async function init() {
   });
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+  /* زر تثبيت التطبيق (PWA) */
+  setupInstall();
 }
 
 function applyModeUI() {
@@ -817,8 +825,35 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && running) requestWakeLock();
 });
 
+let deferredInstall = null;
+/* التقط حدث التثبيت مبكراً (قد يُطلق قبل اكتمال تحميل البيانات) */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstall = e;
+  const b = document.getElementById('btnInstall');
+  if (b) b.style.display = 'block';
+});
+function setupInstall() {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (standalone) return; // يعمل كتطبيق مثبت بالفعل
+  if (deferredInstall) $('btnInstall').style.display = 'block';
+  $('btnInstall').onclick = async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    try { await deferredInstall.userChoice; } catch (e) {}
+    deferredInstall = null;
+    $('btnInstall').style.display = 'none';
+  };
+  window.addEventListener('appinstalled', () => {
+    $('btnInstall').style.display = 'none';
+  });
+  /* آيفون: لا يدعم beforeinstallprompt — اعرض الإرشاد */
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (isIOS) $('iosTip').style.display = 'block';
+}
+
 init();
-/* v3.0 — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v3.1 — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
