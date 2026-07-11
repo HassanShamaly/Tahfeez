@@ -120,7 +120,7 @@
 <!-- ======= شاشة الإعداد ======= -->
 <section id="setup" class="screen active">
   <h1>متابع التسميع</h1>
-  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة</div>
+  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة <b style="color:var(--gold)">v2</b></div>
 
   <div id="noSupport">
     المتصفح الحالي لا يدعم التعرف الصوتي.
@@ -340,6 +340,14 @@ const HINT_DELAY = 5000;
 /* حالة التحفيظ (استماع وتكرار) */
 let hifz = null;                  // {si, from, to, pos, rep, pass}
 let reviewTo = -1;                // نهاية نطاق مراجعة التسميع (-1 = تسميع عادي)
+
+/* كشف فقدان التزامن أثناء التسميع */
+let lastBuf = [];                 // آخر الكلمات المسموعة (مطبّعة)
+let spokenSinceAdvance = 0;       // كلمات سُمعت دون أي تقدم في المطابقة
+let lastAnnounceAt = 0;           // آخر عتبة أُطلق عندها تنبيه
+let lastResultTime = 0;           // آخر وصول نتيجة من التعرف الصوتي
+const LOST_AFTER_WORDS = 6;       // كلمات بلا تقدم = محاولة إعادة تزامن ثم تنبيه
+const MIC_DEAD_MS = 25000;        // صمت أحداث كامل = إعادة تشغيل الميكروفون
 let player = null, curResolve = null, pendingResume = null, tapBusy = false;
 
 const $ = id => document.getElementById(id);
@@ -529,6 +537,8 @@ function startRecite(si, ai) {
   if (mode === 'hifz') { reviewTo = -1; startHifz(si, ai); return; }
 
   /* --- وضع التسميع --- */
+  lastBuf = []; spokenSinceAdvance = 0; lastAnnounceAt = 0;
+  lastResultTime = Date.now();
   reviewTo = +$('ayahToSel').value;
   if (!(reviewTo >= ai && reviewTo < QURAN[si].verses.length)) reviewTo = -1;
   if (reviewTo >= 0) {
@@ -672,8 +682,9 @@ async function tapPlay(si, idx, el) {
 function speak(txt) {
   return new Promise(resolve => {
     if (!('speechSynthesis' in window)) return resolve();
+    holdRecog();
     let fin = false;
-    const end = () => { if (fin) return; fin = true; resolve(); };
+    const end = () => { if (fin) return; fin = true; releaseRecog(); resolve(); };
     try {
       const u = new SpeechSynthesisUtterance(txt);
       u.lang = 'ar-SA'; u.rate = 1.05;
@@ -693,6 +704,12 @@ function releaseRecog() {
 /* =============== تذكير الصمت (التسميع) =============== */
 function checkHint() {
   if (!running || paused || recogHold || mode !== 'tasmee') return;
+  /* مراقب الميكروفون: لا أحداث إطلاقاً منذ مدة طويلة = أعد تشغيل التعرف */
+  if (lastResultTime && Date.now() - lastResultTime > MIC_DEAD_MS && !tapBusy) {
+    lastResultTime = Date.now();
+    try { recog.abort(); } catch (e) {}
+    /* onend سيعيد التشغيل تلقائياً */
+  }
   if (!settings.hint || hintShown) return;
   if (session.progress().done) return;
   if (Date.now() - lastActivity >= HINT_DELAY) showHint();
@@ -813,6 +830,68 @@ function handleCompleted(list) {
   if (session.progress().done) nextSurah();
 }
 
+/* إعادة التزامن: هل آخر ما سُمع يطابق بداية الآية الحالية (إعادة) أو إحدى الآيات التالية (قفزة)؟ */
+function tryResync() {
+  const cur = session.progress().ayah;
+  const total = session.tokens.length;
+  const maxAhead = 4;
+  for (let k = 0; k <= maxAhead; k++) {
+    const target = cur + k;
+    if (target >= total) break;
+    if (reviewTo >= 0 && target > reviewTo) break;
+    const w = session.tokens[target].words;
+    const maxM = Math.min(w.length, lastBuf.length, 8);
+    const minM = Math.min(3, w.length);
+    for (let m = maxM; m >= minM; m--) {
+      const tail = lastBuf.slice(-m);
+      let ok = true;
+      for (let i = 0; i < m; i++) {
+        if (!Matcher.wordMatch(tail[i], w[i])) { ok = false; break; }
+      }
+      if (!ok) continue;
+      /* وجدنا الموضع — علّم ما فات كمتخطى وقفز */
+      for (let j = cur; j < target; j++) showVerse(j, true);
+      session.ayah = target; session.wi = m;
+      session.pendingWord = null; session.bismillahDone = true;
+      /* قد تكون الآية القصيرة اكتملت بهذه الكلمات */
+      if (session.wi >= w.length) {
+        session.completedInCall = [];
+        session._completeAyah(false);
+        handleCompleted(session.completedInCall);
+      }
+      hideHint();
+      updateCurrentBox(session); updateHeader(); saveProgress();
+      if (settings.sound) chime();
+      try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+      return true;
+    }
+  }
+  return false;
+}
+
+/* تنبيه صوتي: المتابعة متوقفة */
+function buzz() {
+  try {
+    const ctx = chime.ctx || (chime.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    [0, 0.35].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 320;
+      g.gain.setValueAtTime(0.3, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch (e) {}
+}
+
+async function lostAlert() {
+  buzz();
+  try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {}
+  showHint();
+  const n = session.progress().ayah + 1;
+  await speak('توقفت المتابعة عند الآية ' + n);
+}
+
 function finishReview() {
   running = false;
   try { recog && recog.stop(); } catch (e) {}
@@ -867,6 +946,7 @@ function startRecognition() {
   recog.onresult = e => {
     if (mode !== 'tasmee' || tapBusy) return;
     lastActivity = Date.now();
+    lastResultTime = Date.now();
     if (hintShown) hideHint();
     let finalText = '', interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -878,15 +958,36 @@ function startRecognition() {
     if (heard) $('heard').textContent = '🎙 ' + heard.slice(-80);
 
     if (finalText.trim()) {
+      const fw = Matcher.words(finalText);
+      const before = session.progress();
       const completed = session.feed(finalText);
+      const after = session.progress();
+      /* سجل الكلمات وتتبع التقدم */
+      lastBuf.push(...fw);
+      if (lastBuf.length > 14) lastBuf.splice(0, lastBuf.length - 14);
+      if (after.ayah !== before.ayah || after.wordIndex !== before.wordIndex) {
+        spokenSinceAdvance = 0; lastAnnounceAt = 0;
+      } else {
+        spokenSinceAdvance += fw.length;
+      }
       handleCompleted(completed);
       updateCurrentBox(session); updateHeader();
+      /* هل فقدنا التزامن؟ */
+      if (running && spokenSinceAdvance >= LOST_AFTER_WORDS && !session.progress().done) {
+        if (tryResync()) {
+          spokenSinceAdvance = 0; lastAnnounceAt = 0;
+        } else if (spokenSinceAdvance - lastAnnounceAt >= LOST_AFTER_WORDS) {
+          lastAnnounceAt = spokenSinceAdvance;
+          lostAlert();
+        }
+      }
     }
     if (interim.trim()) {
       const trial = session.clone();
       const completed = trial.feed(interim);
       if (completed.length) {
         session.feed(interim);
+        spokenSinceAdvance = 0; lastAnnounceAt = 0;
         handleCompleted(completed);
         updateCurrentBox(session); updateHeader();
         try { recog.abort(); } catch (err) {}
@@ -900,6 +1001,8 @@ function startRecognition() {
       running = false;
       $('mic').classList.remove('on');
       alert('لم يُسمح باستخدام الميكروفون. فعّل الإذن من إعدادات المتصفح.');
+    } else if (e.error === 'network' || e.error === 'audio-capture') {
+      buzz(); // انقطاع الخدمة — نبّه المستخدم صوتياً
     }
   };
   recog.onend = () => {
@@ -951,6 +1054,7 @@ function skipAyah() {
   }
   if (!session || session.progress().done) return;
   hideHint(); lastActivity = Date.now();
+  lastBuf = []; spokenSinceAdvance = 0; lastAnnounceAt = 0;
   handleCompleted(session.skipAyah());
   updateCurrentBox(session); updateHeader();
 }
@@ -1018,7 +1122,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.4 — تسميع مراجعة بنطاق محدد لا يغيّر الموضع المحفوظ — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v4.0 — كشف فقدان التزامن، إعادة تزامن تلقائية، وتنبيهات صوتية — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
