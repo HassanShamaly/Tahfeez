@@ -113,6 +113,40 @@
   #btnPause.paused { background: var(--green); color: #06130c; }
   #btnStop { background: #3a2424; color: #f0b9b9; }
   #btnReplay { display: none; }
+
+  /* ===== لوحة المتابعة ===== */
+  #statsStrip {
+    display: none; justify-content: space-between; align-items: center; gap: 8px;
+    background: var(--card2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 16px; font-size: 15px; cursor: pointer;
+  }
+  #stats header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  #stats header .ttl { color: var(--gold); font-size: 22px; font-weight: 700; }
+  #btnStatsBack { background: var(--card2); color: var(--text); border: none; border-radius: 12px; padding: 10px 18px; font-size: 16px; font-family: inherit; font-weight: 700; }
+  #statsBody { flex: 1; overflow-y: auto; padding: 20px; }
+  .statCard { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .statHero { text-align: center; }
+  .statHero .flame { font-size: 44px; }
+  .statHero .big { color: var(--gold); font-size: 30px; font-weight: 700; }
+  .statHero .msg { color: var(--dim); font-size: 15px; margin-top: 6px; line-height: 1.8; }
+  .goalBar { height: 14px; background: var(--card2); border-radius: 8px; overflow: hidden; margin: 10px 0 6px; }
+  .goalFill { height: 100%; background: var(--green); border-radius: 8px; transition: width .4s; }
+  .weekWrap { display: flex; gap: 8px; align-items: flex-end; height: 90px; margin-top: 12px; }
+  .weekCol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .weekBar { width: 100%; background: var(--green); border-radius: 6px 6px 0 0; min-height: 2px; opacity: .85; }
+  .weekCol.today .weekBar { background: var(--gold); }
+  .weekCol .lbl { color: var(--dim); font-size: 12px; }
+  .totRow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; }
+  .totRow .n { color: var(--gold); font-size: 24px; font-weight: 700; }
+  .totRow .l { color: var(--dim); font-size: 13px; }
+  .badge { padding: 8px 10px; border-radius: 12px; margin-top: 8px; background: var(--card2); font-size: 15px; }
+  .badge.locked { color: var(--dim); }
+  .quote { color: var(--gold); font-size: 17px; line-height: 2; text-align: center; }
+  .quote .src { color: var(--dim); font-size: 13px; }
+  .statTitle { color: var(--dim); font-size: 14px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -121,6 +155,8 @@
 <section id="setup" class="screen active">
   <h1>متابع التسميع</h1>
   <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة</div>
+
+  <div id="statsStrip"></div>
 
   <div id="noSupport">
     المتصفح الحالي لا يدعم التعرف الصوتي.
@@ -238,6 +274,15 @@
     <button id="btnSkip">⏭️ تخطي</button>
     <button id="btnStop">🏁 إنهاء</button>
   </div>
+</section>
+
+<!-- ======= شاشة المتابعة ======= -->
+<section id="stats" class="screen">
+  <header>
+    <div class="ttl">📊 متابعتي</div>
+    <button id="btnStatsBack">↩ رجوع</button>
+  </header>
+  <div id="statsBody"></div>
 </section>
 
 <script src="matcher.js"></script>
@@ -369,6 +414,145 @@ function setupResume(key, m, cardId, whereId, btnId, label) {
   };
 }
 
+/* =============== لوحة المتابعة التحفيزية =============== */
+const STATS_KEY = 'tasmee_stats';
+let stats = null;
+
+const BADGES = [
+  [100, '🌱 بداية مباركة — ١٠٠ آية'],
+  [300, '🌿 همّة متصاعدة — ٣٠٠ آية'],
+  [700, '🌳 مثابر — ٧٠٠ آية'],
+  [1000, '🏅 الألف الأولى — ١٠٠٠ آية'],
+  [3000, '🥈 من المجتهدين — ٣٠٠٠ آية'],
+  [6236, '🥇 نشاط بعدد آيات المصحف — ٦٢٣٦'],
+  [10000, '🏆 من أهل القرآن — ١٠٠٠٠ آية']
+];
+const QUOTES = [
+  ['«خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ»', 'رواه البخاري'],
+  ['«يُقَالُ لِصَاحِبِ الْقُرْآنِ: اقْرَأْ وَارْتَقِ وَرَتِّلْ كَمَا كُنْتَ تُرَتِّلُ فِي الدُّنْيَا، فَإِنَّ مَنْزِلَتَكَ عِنْدَ آخِرِ آيَةٍ تَقْرَؤُهَا»', 'رواه الترمذي'],
+  ['«الْمَاهِرُ بِالْقُرْآنِ مَعَ السَّفَرَةِ الْكِرَامِ الْبَرَرَةِ، وَالَّذِي يَقْرَأُ الْقُرْآنَ وَيَتَتَعْتَعُ فِيهِ وَهُوَ عَلَيْهِ شَاقٌّ لَهُ أَجْرَانِ»', 'متفق عليه'],
+  ['«مَنْ قَرَأَ حَرْفًا مِنْ كِتَابِ اللَّهِ فَلَهُ بِهِ حَسَنَةٌ، وَالْحَسَنَةُ بِعَشْرِ أَمْثَالِهَا»', 'رواه الترمذي'],
+  ['«تَعَاهَدُوا الْقُرْآنَ، فَوَالَّذِي نَفْسِي بِيَدِهِ لَهُوَ أَشَدُّ تَفَصِّيًا مِنَ الإِبِلِ فِي عُقُلِهَا»', 'متفق عليه'],
+  ['«اقْرَؤُوا الْقُرْآنَ فَإِنَّهُ يَأْتِي يَوْمَ الْقِيَامَةِ شَفِيعًا لأَصْحَابِهِ»', 'رواه مسلم']
+];
+
+function loadStats() {
+  try { stats = JSON.parse(localStorage.getItem(STATS_KEY) || 'null'); } catch (e) {}
+  if (!stats) stats = {};
+  if (!stats.days) stats.days = {};
+  if (!stats.badges) stats.badges = [];
+  if (!stats.goal) stats.goal = 10;
+}
+function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {} }
+function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function todayKey() { return dateKey(new Date()); }
+function dayTotal(d) { return d ? (d.t || 0) + (d.h || 0) + (d.r || 0) : 0; }
+function totalAll() { let s = 0; for (const k in stats.days) s += dayTotal(stats.days[k]); return s; }
+function totalKind(kind) { let s = 0; for (const k in stats.days) s += (stats.days[k][kind] || 0); return s; }
+
+function streakDays() {
+  const DAY = 86400000;
+  let t = new Date(); t.setHours(0, 0, 0, 0);
+  if (!dayTotal(stats.days[dateKey(t)])) t = new Date(t.getTime() - DAY); // اليوم لم يبدأ بعد — احسب من أمس
+  let n = 0;
+  while (dayTotal(stats.days[dateKey(t)]) > 0) { n++; t = new Date(t.getTime() - DAY); }
+  return n;
+}
+
+/* تسجيل آية نشاط: t تسميع، h تحفيظ، r مراجعة */
+function addStat(kind) {
+  if (!stats) loadStats();
+  const k = todayKey();
+  const d = stats.days[k] || (stats.days[k] = { t: 0, h: 0, r: 0 });
+  d[kind] = (d[kind] || 0) + 1;
+  const tot = totalAll();
+  for (const [n] of BADGES) {
+    if (tot >= n && !stats.badges.includes(n)) { stats.badges.push(n); chime(true); }
+  }
+  saveStats();
+}
+
+function renderStatsStrip() {
+  const d = stats.days[todayKey()];
+  const td = dayTotal(d), st = streakDays(), goal = stats.goal;
+  const strip = $('statsStrip');
+  strip.style.display = 'flex';
+  strip.innerHTML =
+    '<span>🔥 ' + arNum(st) + (st === 1 ? ' يوم' : ' أيام') + '</span>' +
+    '<span>اليوم: ' + arNum(td) + '/' + arNum(goal) + ' آية ' + (td >= goal ? '✅' : '') + '</span>' +
+    '<span style="color:var(--gold);font-weight:700">📊 متابعتي ‹</span>';
+}
+
+function openStats() {
+  const d = stats.days[todayKey()] || { t: 0, h: 0, r: 0 };
+  const td = dayTotal(d), st = streakDays(), goal = stats.goal, tot = totalAll();
+  const remaining = Math.max(0, goal - td);
+  let msg;
+  if (td >= goal) msg = 'ما شاء الله! حققت هدف اليوم 🎉 — «أحب الأعمال إلى الله أدومها وإن قل»';
+  else if (td > 0) msg = 'بقي ' + arNum(remaining) + (remaining === 1 ? ' آية' : ' آيات') + ' لتحقيق هدف اليوم — أكمل، أنت قريب!';
+  else msg = 'لم تبدأ اليوم بعد — ابدأ ولو بآية، القليل الدائم خير من الكثير المنقطع';
+
+  /* الأسبوع الأخير */
+  const DAY = 86400000, names = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+  let bars = '', maxV = 1;
+  const week = [];
+  for (let i = 6; i >= 0; i--) {
+    const dt = new Date(Date.now() - i * DAY);
+    const v = dayTotal(stats.days[dateKey(dt)]);
+    week.push({ v, lbl: names[dt.getDay()], today: i === 0 });
+    if (v > maxV) maxV = v;
+  }
+  for (const w of week) {
+    bars += '<div class="weekCol' + (w.today ? ' today' : '') + '">' +
+      '<div style="color:var(--dim);font-size:12px">' + (w.v ? arNum(w.v) : '') + '</div>' +
+      '<div class="weekBar" style="height:' + Math.round(75 * w.v / maxV) + 'px"></div>' +
+      '<div class="lbl">' + w.lbl + '</div></div>';
+  }
+
+  /* الأوسمة */
+  let badges = '';
+  for (const [n, label] of BADGES) {
+    if (stats.badges.includes(n)) badges += '<div class="badge">' + label + ' ✓</div>';
+  }
+  const next = BADGES.find(b => !stats.badges.includes(b[0]));
+  if (next) badges += '<div class="badge locked">🔒 ' + next[1] + ' — بقي ' + arNum(next[0] - tot) + '</div>';
+
+  const q = QUOTES[Math.floor(Date.now() / DAY) % QUOTES.length];
+
+  $('statsBody').innerHTML =
+    '<div class="statCard statHero">' +
+      '<div class="flame">🔥</div>' +
+      '<div class="big">' + arNum(st) + (st === 1 ? ' يوم متواصل' : ' أيام متواصلة') + '</div>' +
+      '<div class="msg">' + msg + '</div>' +
+    '</div>' +
+    '<div class="statCard">' +
+      '<div class="statTitle">هدف اليوم: ' + arNum(td) + ' من ' + arNum(goal) + ' آية</div>' +
+      '<div class="goalBar"><div class="goalFill" style="width:' + Math.min(100, Math.round(100 * td / goal)) + '%"></div></div>' +
+      '<div class="statTitle" style="margin-top:12px">تغيير الهدف اليومي</div>' +
+      '<select id="goalSel">' +
+        [5, 10, 15, 20, 30, 50].map(g => '<option value="' + g + '"' + (g === goal ? ' selected' : '') + '>' + arNum(g) + ' آيات يومياً</option>').join('') +
+      '</select>' +
+    '</div>' +
+    '<div class="statCard">' +
+      '<div class="statTitle">آخر ٧ أيام</div>' +
+      '<div class="weekWrap">' + bars + '</div>' +
+    '</div>' +
+    '<div class="statCard totRow">' +
+      '<div><div class="n">' + arNum(totalKind('t')) + '</div><div class="l">🎙 تسميع</div></div>' +
+      '<div><div class="n">' + arNum(totalKind('h')) + '</div><div class="l">🎧 تحفيظ</div></div>' +
+      '<div><div class="n">' + arNum(totalKind('r')) + '</div><div class="l">🔁 مراجعة</div></div>' +
+    '</div>' +
+    '<div class="statCard"><div class="statTitle">الأوسمة — المجموع ' + arNum(tot) + ' آية</div>' + (badges || '<div class="badge locked">ابدأ رحلتك لنيل أول وسام 🌱</div>') + '</div>' +
+    '<div class="statCard quote">' + q[0] + '<br><span class="src">' + q[1] + '</span></div>';
+
+  $('goalSel').onchange = () => {
+    stats.goal = +$('goalSel').value || 10;
+    saveStats();
+    openStats();
+  };
+  switchScreen('stats');
+}
+
 /* بطاقة تسميع آخر مقطع تحفيظ كمراجعة معزولة */
 function setupReviewCard() {
   const h = settings.hifz;
@@ -439,6 +623,11 @@ async function init() {
   setupResume(PROG_TASMEE, 'tasmee', 'resumeTasmee', 'whereTasmee', 'btnResumeTasmee', 'تسميع');
   setupResume(PROG_HIFZ, 'hifz', 'resumeHifz', 'whereHifz', 'btnResumeHifz', 'تحفيظ');
   setupReviewCard();
+
+  loadStats();
+  renderStatsStrip();
+  $('statsStrip').onclick = openStats;
+  $('btnStatsBack').onclick = () => { renderStatsStrip(); switchScreen('setup'); };
 
   $('btnStart').onclick = () => startRecite(+sel.value, +$('ayahSel').value);
   $('btnPause').onclick = togglePause;
@@ -588,6 +777,7 @@ function advanceHifz() {
   hifz.rep++;
   if (hifz.rep < settings.reps) { hifzPlayCurrent(); return; }
   hifz.rep = 0;
+  if (hifz.pass === 0) addStat('h');
   hifz.pos++;
   saveHifzProgress();
   if (hifz.pos > hifz.to) {
@@ -785,6 +975,7 @@ function showVerse(idx, skipped) {
   d.innerHTML = QURAN[curSurah].verses[idx] + ' <span class="num">﴿' + arNum(idx + 1) + '﴾</span>';
   $('verses').insertBefore(d, box);
   if (!skipped && settings.sound) chime();
+  if (!skipped) addStat(reviewTo >= 0 ? 'r' : 't');
   saveProgress();
   scrollDown();
 }
@@ -1018,7 +1209,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.4 — تسميع مراجعة بنطاق محدد لا يغيّر الموضع المحفوظ — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v3.5 — لوحة المتابعة التحفيزية (متابعتي) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
