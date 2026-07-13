@@ -1,5 +1,5 @@
 /* التخزين المؤقت للعمل دون تحميل متكرر (التعرف الصوتي نفسه يتطلب إنترنت) */
-const CACHE = 'tasmee3-v1';
+const CACHE = 'tasmee3-v2';
 const ASSETS = ['./', './index.html', './matcher.js', './quran.json', './manifest.json',
                 './icons/icon-192.png', './icons/icon-512.png'];
 

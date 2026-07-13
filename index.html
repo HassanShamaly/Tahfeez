@@ -245,6 +245,7 @@
     <label class="tog"><input type="checkbox" id="optPreview"> عرض نص الآية الحالية أثناء التلاوة (وضع المتابعة)</label>
     <label class="tog"><input type="checkbox" id="optSound" checked> نغمة تأكيد عند إتمام كل آية</label>
     <label class="tog"><input type="checkbox" id="optHint" checked> تذكير بالآية بعد ٥ ثوانٍ من الصمت</label>
+    <label class="tog"><input type="checkbox" id="optLost"> تنبيه صوتي منطوق عند توقف المتابعة (قد يقاطعك)</label>
   </div>
 
   <button class="bigbtn" id="btnStart">ابدأ التسميع 🎙️</button>
@@ -305,7 +306,7 @@ function defaultSettings() {
     /* قيم التشغيل الحالية (تُملأ من إعدادات الوضع عند البدء) */
     preview: false, sound: true, hint: true, reps: 3, passes: 0, reciter: 'Husary_Muallim_128kbps',
     /* إعدادات محفوظة لكل وضع على حدة */
-    tasmee: { s: 0, a: 0, preview: false, sound: true, hint: true, reciter: 'Husary_Muallim_128kbps', reps: 3 },
+    tasmee: { s: 0, a: 0, preview: false, sound: true, hint: true, lost: false, reciter: 'Husary_Muallim_128kbps', reps: 3 },
     hifz:   { s: 0, a: 0, to: null, reciter: 'Husary_Muallim_128kbps', reps: 3, passes: 0 }
   };
 }
@@ -355,6 +356,7 @@ function captureModeUI(m) {
     o.preview = $('optPreview').checked;
     o.sound = $('optSound').checked;
     o.hint = $('optHint').checked;
+    o.lost = $('optLost').checked;
   }
   saveSettings();
 }
@@ -380,6 +382,7 @@ function loadModeUI(m) {
     $('optPreview').checked = !!o.preview;
     $('optSound').checked = o.sound !== false;
     $('optHint').checked = o.hint !== false;
+    $('optLost').checked = !!o.lost;
   }
 }
 let lastActivity = 0, hintShown = false, hintTimer = null;
@@ -710,6 +713,7 @@ function startRecite(si, ai) {
   settings.preview = mode === 'tasmee' && !!cur.preview;
   settings.sound = mode === 'tasmee' ? cur.sound !== false : true;
   settings.hint = mode === 'tasmee' && cur.hint !== false;
+  settings.lost = mode === 'tasmee' && !!cur.lost;
   saveSettings();
 
   curSurah = si; startAyah = ai;
@@ -1131,9 +1135,10 @@ function buzz() {
 }
 
 async function lostAlert() {
+  showHint(); // تذكير صامت على الشاشة دائماً
+  if (!settings.lost) return; // التنبيه المسموع اختياري (مغلق افتراضياً)
   buzz();
   try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {}
-  showHint();
   const n = session.progress().ayah + 1;
   await speak('توقفت المتابعة عند الآية ' + n);
 }
@@ -1246,7 +1251,7 @@ function startRecognition() {
       $('mic').classList.remove('on');
       alert('لم يُسمح باستخدام الميكروفون. فعّل الإذن من إعدادات المتصفح.');
     } else if (e.error === 'network' || e.error === 'audio-capture') {
-      buzz();
+      if (settings.lost) buzz();
     }
   };
   recog.onend = () => {
@@ -1367,7 +1372,7 @@ function setupInstall() {
 }
 
 init();
-/* v5.0 — v3: كل المزايا + إعادة التسميع من البداية + استماع مسبق بصوت علي جابر — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v5.1 — v3 (تنبيه المقاطعة اختياري ومغلق افتراضياً): كل المزايا + إعادة التسميع من البداية + استماع مسبق بصوت علي جابر — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
