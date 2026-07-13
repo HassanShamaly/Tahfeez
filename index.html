@@ -29,9 +29,9 @@
   .screen.active { display: flex; }
 
   /* ===== شاشة الإعداد ===== */
-  #setup { padding: 24px 20px; overflow-y: auto; }
-  #setup h1 { color: var(--gold); font-size: 30px; text-align: center; margin: 16px 0 4px; }
-  #setup .sub { text-align: center; color: var(--dim); font-size: 15px; margin-bottom: 24px; }
+  #setup, #home { padding: 24px 20px; overflow-y: auto; }
+  #setup h1, #home h1 { color: var(--gold); font-size: 30px; text-align: center; margin: 16px 0 4px; }
+  #setup .sub, #home .sub { text-align: center; color: var(--dim); font-size: 15px; margin-bottom: 24px; }
   .field { margin-bottom: 16px; }
   .field label { display: block; color: var(--dim); font-size: 15px; margin-bottom: 6px; }
   select {
@@ -114,6 +114,18 @@
   #btnStop { background: #3a2424; color: #f0b9b9; }
   #btnReplay { display: none; }
 
+  /* ===== الشاشة الرئيسية والأوضاع ===== */
+  .modeCard { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 18px; margin-bottom: 14px; cursor: pointer; }
+  .modeCard .mt { font-size: 25px; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+  .modeCard .md { color: var(--dim); font-size: 15px; line-height: 1.8; }
+  .modeCard:active { filter: brightness(1.25); }
+  #cardHifz .mt { color: #7ec8e3; }
+  #setupHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  #setupHead h1 { font-size: 24px; margin: 0; text-align: right; }
+  #btnSetupBack { background: var(--card2); color: var(--text); border: none; border-radius: 12px; padding: 10px 18px; font-size: 16px; font-family: inherit; font-weight: 700; }
+  #phaseBanner.repeat { background: var(--green); }
+  #btnNextPassage { margin: 10px 14px 0; padding: 16px; font-size: 20px; font-weight: 700; font-family: inherit; background: var(--green); color: #06130c; border: none; border-radius: 14px; }
+
   /* ===== لوحة المتابعة ===== */
   #statsStrip {
     display: none; justify-content: space-between; align-items: center; gap: 8px;
@@ -151,10 +163,10 @@
 </head>
 <body>
 
-<!-- ======= شاشة الإعداد ======= -->
-<section id="setup" class="screen active">
+<!-- ======= الشاشة الرئيسية: الأوضاع فقط ======= -->
+<section id="home" class="screen active">
   <h1>متابع التسميع</h1>
-  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة <b style="color:var(--gold)">v3</b></div>
+  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة <b style="color:var(--gold)">v4</b></div>
 
   <div id="statsStrip"></div>
 
@@ -181,12 +193,26 @@
     <button id="btnReview">🎙 سمّع ما حفظته الآن</button>
   </div>
 
-  <div class="field">
-    <label for="modeSel">الوضع</label>
-    <select id="modeSel">
-      <option value="tasmee">🎙 تسميع — أقرأ من حفظي والتطبيق يتابع</option>
-      <option value="hifz">🎧 تحفيظ — أستمع للآيات بالتكرار حتى أحفظها</option>
-    </select>
+  <div class="modeCard" id="cardTasmee">
+    <div class="mt">🎙 التسميع</div>
+    <div class="md">اقرأ من حفظك والتطبيق يستمع ويعرض الآيات التي تلوتها</div>
+  </div>
+  <div class="modeCard" id="cardHifz">
+    <div class="mt">🎧 التحفيظ</div>
+    <div class="md">فقرة تستمع إليها بالتكرار ثم تسمّعها ٣ مرات وتثبّتها من أول السورة</div>
+  </div>
+
+  <div class="warn">
+    ⚠️ لسلامتك أثناء القيادة: ثبّت الهاتف، وشغّل التطبيق قبل الانطلاق، ولا تنظر إلى الشاشة إلا عند التوقف.<br>
+    يتطلب التعرف الصوتي وصوت القارئ اتصالاً بالإنترنت وإذن الميكروفون.
+  </div>
+</section>
+
+<!-- ======= شاشة خيارات الوضع ======= -->
+<section id="setup" class="screen">
+  <div id="setupHead">
+    <h1 id="setupTitle">الخيارات</h1>
+    <button id="btnSetupBack">↩ رجوع</button>
   </div>
 
   <div class="field">
@@ -249,10 +275,6 @@
 
   <button class="bigbtn" id="btnStart">ابدأ التسميع 🎙️</button>
 
-  <div class="warn">
-    ⚠️ لسلامتك أثناء القيادة: ثبّت الهاتف، وشغّل التطبيق قبل الانطلاق، ولا تنظر إلى الشاشة إلا عند التوقف.<br>
-    يتطلب التعرف الصوتي وصوت القارئ اتصالاً بالإنترنت وإذن الميكروفون.
-  </div>
 </section>
 
 <!-- ======= شاشة الجلسة ======= -->
@@ -264,6 +286,7 @@
   </header>
 
   <div id="phaseBanner"></div>
+  <button id="btnNextPassage" style="display:none">⏭ انتقل للفقرة التالية</button>
 
   <div id="verses"></div>
 
@@ -273,6 +296,7 @@
     <button id="btnPause">⏸️ إيقاف</button>
     <button id="btnListen" style="display:none">▶️ استماع</button>
     <button id="btnRestart" style="display:none">🔄 من البداية</button>
+    <button id="btnHifzRecite" style="display:none">🎙 سمّع الفقرة</button>
     <button id="btnReplay">🔊 إعادة</button>
     <button id="btnSkip">⏭️ تخطي</button>
     <button id="btnStop">🏁 إنهاء</button>
@@ -365,6 +389,7 @@ function loadModeUI(m) {
   let s = o.s || 0, a = o.a || 0;
   let prog = null;
   try { prog = JSON.parse(localStorage.getItem(m === 'hifz' ? PROG_HIFZ : PROG_TASMEE) || 'null'); } catch (e) {}
+  if (prog && prog.a == null && prog.from != null) prog.a = prog.from;
   if (prog && QURAN[prog.s] && prog.a < QURAN[prog.s].verses.length) { s = prog.s; a = prog.a; }
   if (!QURAN[s]) { s = 0; a = 0; }
   $('surahSel').value = s;
@@ -375,6 +400,7 @@ function loadModeUI(m) {
   if (m === 'hifz') {
     $('passSel').value = String(o.passes || 0);
     $('ayahToSel').value = (o.to != null && o.to >= 0 && s === o.s && o.to < QURAN[s].verses.length && o.to >= a) ? o.to : '-1';
+    if (prog && prog.to != null && prog.s === s && prog.to < QURAN[s].verses.length && prog.to >= a) $('ayahToSel').value = prog.to;
   } else {
     $('ayahToSel').value = '-1';
     $('optPreview').checked = !!o.preview;
@@ -385,8 +411,9 @@ function loadModeUI(m) {
 let lastActivity = 0, hintShown = false, hintTimer = null;
 const HINT_DELAY = 5000;
 
-/* حالة التحفيظ (استماع وتكرار) */
-let hifz = null;                  // {si, from, to, pos, rep, pass}
+/* حالة التحفيظ (استماع وتكرار + تسميع الفقرة) */
+let hifz = null;                  // {si, from, to, pos, rep, pass, count, linkDone}
+let hifzRecite = null;            // جلسة تسميع داخل التحفيظ {sess, base, target, clean}
 let reviewTo = -1;                // نهاية نطاق مراجعة التسميع (-1 = تسميع عادي)
 let listenBusy = false;           // الاستماع المسبق قيد التشغيل
 let sessionStart = { si: 0, ai: 0 }; // بداية الجلسة (لزر «من البداية»)
@@ -405,16 +432,22 @@ const PROG_HIFZ = 'tasmee_prog_hifz';
 function setupResume(key, m, cardId, whereId, btnId, label) {
   let prog = null;
   try { prog = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+  if (prog && prog.a == null && prog.from != null) prog.a = prog.from; // توافق الصيغ
   if (!prog || !QURAN[prog.s] || prog.a >= QURAN[prog.s].verses.length) return;
   $(cardId).style.display = 'block';
-  $(whereId).textContent = label + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
+  let txt = label + ': سورة ' + QURAN[prog.s].name + ' — الآية ' + arNum(prog.a + 1);
+  if (m === 'hifz' && prog.to != null) {
+    txt = 'تحفيظ: سورة ' + QURAN[prog.s].name + ' — الفقرة ' + arNum(prog.a + 1) + '–' + arNum(prog.to + 1) +
+          ' (تسميع ' + arNum(Math.min(prog.count || 0, 3)) + '/٣' + (prog.linkDone ? ' ✓' : '') + ')';
+  }
+  $(whereId).textContent = txt;
   $(btnId).onclick = () => {
-    $('modeSel').value = m;
-    prevMode = m; settings.mode = m;
+    mode = prevMode = m; settings.mode = m;
     applyModeUI();
     $('surahSel').value = prog.s;
     fillAyahs();
     $('ayahSel').value = prog.a;
+    if (m === 'hifz' && prog.to != null && prog.to < QURAN[prog.s].verses.length) $('ayahToSel').value = prog.to;
     startRecite(prog.s, prog.a);
   };
 }
@@ -570,8 +603,7 @@ function setupReviewCard() {
   $('reviewCard').style.display = 'block';
   $('whereReview').textContent = 'مراجعة مقطع التحفيظ: سورة ' + QURAN[h.s].name + ' — الآيات ' + arNum(from + 1) + '–' + arNum(to + 1);
   $('btnReview').onclick = () => {
-    $('modeSel').value = 'tasmee';
-    prevMode = 'tasmee'; settings.mode = 'tasmee';
+    mode = prevMode = 'tasmee'; settings.mode = 'tasmee';
     applyModeUI();
     $('surahSel').value = h.s;
     fillAyahs();
@@ -579,6 +611,16 @@ function setupReviewCard() {
     $('ayahToSel').value = to;
     startRecite(h.s, from);
   };
+}
+
+/* اختيار وضع من الشاشة الرئيسية → شاشة خياراته */
+function selectMode(m) {
+  mode = prevMode = m;
+  settings.mode = m;
+  saveSettings();
+  applyModeUI();
+  $('setupTitle').textContent = m === 'hifz' ? '🎧 خيارات التحفيظ' : '🎙 خيارات التسميع';
+  switchScreen('setup');
 }
 
 async function init() {
@@ -604,16 +646,10 @@ async function init() {
   fillAyahs();
 
   settings = loadSettings();
-  prevMode = settings.mode;
-  $('modeSel').value = prevMode;
-  $('modeSel').onchange = () => {
-    captureModeUI(prevMode);
-    prevMode = $('modeSel').value;
-    settings.mode = prevMode;
-    saveSettings();
-    applyModeUI();
-  };
-  applyModeUI();
+  mode = prevMode = settings.mode;
+  $('cardTasmee').onclick = () => selectMode('tasmee');
+  $('cardHifz').onclick = () => selectMode('hifz');
+  $('btnSetupBack').onclick = () => { captureModeUI(mode); switchScreen('home'); renderStatsStrip(); };
 
   /* ترحيل الصيغة القديمة (مفتاح مشترك) إلى مفتاح لكل وضع */
   try {
@@ -632,24 +668,26 @@ async function init() {
   loadStats();
   renderStatsStrip();
   $('statsStrip').onclick = openStats;
-  $('btnStatsBack').onclick = () => { renderStatsStrip(); switchScreen('setup'); };
+  $('btnStatsBack').onclick = () => { renderStatsStrip(); switchScreen('home'); };
 
   $('btnStart').onclick = () => startRecite(+sel.value, +$('ayahSel').value);
   $('btnPause').onclick = togglePause;
   $('btnSkip').onclick = skipAyah;
   $('btnStop').onclick = stopRecite;
   $('btnReplay').onclick = () => {
-    if (mode === 'hifz' && running && !paused && hifz) { cancelPlayback(); hifzPlayCurrent(); }
+    if (mode === 'hifz' && running && !paused && hifz && !hifzRecite) { cancelPlayback(); hifzPlayCurrent(); }
   };
-  $('btnRestart').onclick = restartTasmee;
+  $('btnRestart').onclick = () => { if (mode === 'hifz') hifzRestartPassage(); else restartTasmee(); };
   $('btnListen').onclick = toggleListenAhead;
+  $('btnHifzRecite').onclick = toggleHifzRecite;
+  $('btnNextPassage').onclick = nextPassage;
 
   /* الضغط على آية لسماعها */
   $('verses').addEventListener('click', e => {
     const v = e.target.closest('.verse');
     if (!v || v.dataset.idx === undefined) return;
     const idx = +v.dataset.idx, si = +v.dataset.si;
-    if (mode === 'hifz') { if (running && !paused) hifzJump(idx); }
+    if (mode === 'hifz') { if (!hifzRecite && running && !paused) hifzJump(idx); }
     else tapPlay(si, idx, v);
   });
 
@@ -660,7 +698,7 @@ async function init() {
 }
 
 function applyModeUI() {
-  const m = $('modeSel').value;
+  const m = mode;
   const h = m === 'hifz';
   $('hifzOpts').style.display = h ? 'block' : 'none';
   $('ayahToField').style.display = 'block';
@@ -692,7 +730,6 @@ function fillAyahs() {
 
 /* =============== بدء جلسة =============== */
 function startRecite(si, ai) {
-  mode = $('modeSel').value;
   captureModeUI(mode);
   settings.mode = mode;
   const cur = settings[mode];
@@ -713,7 +750,11 @@ function startRecite(si, ai) {
   $('btnReplay').style.display = mode === 'hifz' ? 'block' : 'none';
   $('btnListen').style.display = mode === 'tasmee' ? 'block' : 'none';
   $('btnListen').textContent = '▶️ استماع';
-  $('btnRestart').style.display = mode === 'tasmee' ? 'block' : 'none';
+  $('btnRestart').style.display = 'block';
+  $('btnRestart').textContent = mode === 'hifz' ? '⏮ بداية الفقرة' : '🔄 من البداية';
+  $('btnHifzRecite').style.display = mode === 'hifz' ? 'block' : 'none';
+  $('btnHifzRecite').textContent = '🎙 سمّع الفقرة';
+  $('btnNextPassage').style.display = 'none';
   $('phaseBanner').style.display = mode === 'hifz' ? 'block' : 'none';
   $('mic').style.display = mode === 'hifz' ? 'none' : 'block';
   $('heard').style.display = mode === 'hifz' ? 'none' : 'block';
@@ -726,6 +767,7 @@ function startRecite(si, ai) {
   requestWakeLock();
   lastActivity = Date.now(); hintShown = false;
   if (hintTimer) clearInterval(hintTimer);
+  hintTimer = setInterval(checkHint, 500);
 
   if (mode === 'hifz') { reviewTo = -1; startHifz(si, ai); return; }
 
@@ -736,7 +778,6 @@ function startRecite(si, ai) {
     $('phaseBanner').style.display = 'block';
     setBanner('🎙 مراجعة الآيات ' + arNum(ai + 1) + '–' + arNum(reviewTo + 1) + ' — لا تغيّر موضعك المحفوظ', 'link');
   }
-  hintTimer = setInterval(checkHint, 500);
   const noBasmalah = (si === 0 || si === 8);
   session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
   if (ai === 0 && !noBasmalah) addBismillah();
@@ -748,17 +789,32 @@ function startRecite(si, ai) {
 function startHifz(si, from) {
   let to = +$('ayahToSel').value;
   if (isNaN(to) || to < from) to = QURAN[si].verses.length - 1;
-  hifz = { si, from, to, pos: from, rep: 0, pass: 0 };
+  hifz = { si, from, to, pos: from, rep: 0, pass: 0, count: 0, linkDone: false };
+  hifzRecite = null;
+  /* استرجع تقدم نفس الفقرة إن وُجد */
+  try {
+    const p = JSON.parse(localStorage.getItem(PROG_HIFZ) || 'null');
+    if (p && p.s === si && p.from === from && p.to === to) {
+      hifz.count = Math.min(p.count || 0, 3);
+      hifz.linkDone = !!p.linkDone;
+    }
+  } catch (e) {}
+  saveHifzProgress();
+  buildHifzList();
+  updateNextPassageBtn();
+  hifzPlayCurrent();
+}
 
-  /* اعرض آيات المقطع كلها باهتة، وتضيء الآية المسموعة */
-  for (let i = from; i <= to; i++) {
+/* عرض آيات الفقرة باهتة (تضيء المسموعة) */
+function buildHifzList() {
+  $('verses').innerHTML = '';
+  for (let i = hifz.from; i <= hifz.to; i++) {
     const d = document.createElement('div');
     d.className = 'verse quran pend';
-    d.dataset.idx = i; d.dataset.si = si;
-    d.innerHTML = QURAN[si].verses[i] + ' <span class="num">﴿' + arNum(i + 1) + '﴾</span>';
+    d.dataset.idx = i; d.dataset.si = hifz.si;
+    d.innerHTML = QURAN[hifz.si].verses[i] + ' <span class="num">﴿' + arNum(i + 1) + '﴾</span>';
     $('verses').appendChild(d);
   }
-  hifzPlayCurrent();
 }
 
 function hifzBanner() {
@@ -818,7 +874,234 @@ async function hifzFinish() {
 
 function saveHifzProgress() {
   if (!hifz) return;
-  localStorage.setItem(PROG_HIFZ, JSON.stringify({ s: hifz.si, a: Math.min(hifz.pos, hifz.to) }));
+  localStorage.setItem(PROG_HIFZ, JSON.stringify({
+    s: hifz.si, from: hifz.from, to: hifz.to,
+    count: hifz.count || 0, linkDone: !!hifz.linkDone
+  }));
+}
+
+/* =============== تسميع الفقرة داخل التحفيظ =============== */
+function toggleHifzRecite() {
+  if (mode !== 'hifz' || !running || paused || !hifz) return;
+  if (hifzRecite) { exitHifzRecite(); return; }
+  startHifzRecite('passage');
+}
+
+function startHifzRecite(target) {
+  if (mode !== 'hifz' || !running || !hifz) return;
+  cancelPlayback();
+  const base = target === 'link' ? 0 : hifz.from;
+  const noBism = base !== 0 || hifz.si === 0 || hifz.si === 8;
+  hifzRecite = {
+    target, base, clean: true,
+    sess: new Matcher.Session(QURAN[hifz.si].verses.slice(base, hifz.to + 1), 0, { noBismillah: noBism })
+  };
+  $('verses').innerHTML = '';
+  for (let i = base; i <= hifz.to; i++) {
+    const d = document.createElement('div');
+    d.className = 'verse quran pend';
+    d.dataset.idx = i; d.dataset.si = hifz.si;
+    d.innerHTML = QURAN[hifz.si].verses[i] + ' <span class="num">﴿' + arNum(i + 1) + '﴾</span>';
+    $('verses').appendChild(d);
+  }
+  renderReciteBox();
+  $('mic').style.display = 'block';
+  $('heard').style.display = 'block';
+  $('heard').textContent = '';
+  $('btnHifzRecite').textContent = '🎧 عودة للاستماع';
+  $('btnReplay').style.display = 'none';
+  hifzReciteBanner();
+  $('ayahCounter').textContent = target === 'link'
+    ? 'تثبيت: ١–' + arNum(hifz.to + 1)
+    : 'الفقرة ' + arNum(hifz.from + 1) + '–' + arNum(hifz.to + 1);
+  hideHint(); hintShown = false;
+  lastActivity = Date.now();
+  recogHold = false;
+  if (!recog) startRecognition(); else releaseRecog();
+}
+
+function exitHifzRecite() {
+  hifzRecite = null;
+  holdRecog();
+  hideHint();
+  exitToListenIdle();
+  hifzPlayCurrent();
+}
+
+/* عودة لعرض الاستماع دون تشغيل تلقائي */
+function exitToListenIdle() {
+  $('mic').style.display = 'none';
+  $('heard').style.display = 'none';
+  $('btnHifzRecite').textContent = '🎙 سمّع الفقرة';
+  $('btnReplay').style.display = 'block';
+  buildHifzList();
+  hifz.pos = hifz.from; hifz.rep = 0; hifz.pass = 0;
+  $('ayahCounter').textContent = 'الفقرة ' + arNum(hifz.from + 1) + '–' + arNum(hifz.to + 1);
+}
+
+function renderReciteBox() {
+  let box = $('currentBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'currentBox';
+    box.innerHTML = '<div id="currentLabel"><span id="curName"></span><span id="curCount"></span></div>' +
+                    '<div id="wordbar"><div id="wordbarFill"></div></div>' +
+                    '<div id="previewText" class="quran"></div>';
+  }
+  $('verses').appendChild(box);
+  updateHifzReciteBox(hifzRecite.sess);
+}
+
+function updateHifzReciteBox(sess) {
+  if (!hifzRecite) return;
+  const p = sess.progress();
+  if (p.done) return;
+  $('curName').textContent = 'الآية ' + arNum(hifzRecite.base + p.ayah + 1) + ' …';
+  $('curCount').textContent = arNum(p.wordIndex) + ' / ' + arNum(p.totalWords) + ' كلمة';
+  $('wordbarFill').style.width = (p.totalWords ? 100 * p.wordIndex / p.totalWords : 0) + '%';
+  $('previewText').style.display = 'none';
+}
+
+function hifzReciteBanner() {
+  if (!hifzRecite) return;
+  if (hifzRecite.target === 'link') {
+    setBanner('🔗 التثبيت: سمّع من أول السورة حتى الآية ' + arNum(hifz.to + 1), 'link');
+  } else {
+    setBanner('🎙 تسميع الفقرة — المرة ' + arNum(Math.min((hifz.count || 0) + 1, 3)) + ' من ٣', 'repeat');
+  }
+}
+
+function hifzReciteSpeech(finalText, interim) {
+  const R = hifzRecite;
+  if (!R) return;
+  if (finalText.trim()) {
+    hifzReciteCompleted(R.sess.feed(finalText));
+  }
+  if (R !== hifzRecite) return; // انتهى التسميع أثناء المعالجة
+  if (interim.trim() && !R.sess.progress().done) {
+    const trial = R.sess.clone();
+    const completed = trial.feed(interim);
+    if (completed.length) {
+      R.sess.feed(interim);
+      hifzReciteCompleted(completed);
+      try { recog.abort(); } catch (e) {}
+    } else {
+      updateHifzReciteBox(trial);
+    }
+  }
+  if (R === hifzRecite && !R.sess.progress().done) updateHifzReciteBox(R.sess);
+}
+
+function hifzReciteCompleted(list) {
+  const R = hifzRecite;
+  if (!R) return;
+  for (const c of list) {
+    const abs = R.base + c.index;
+    const el = document.querySelector('#verses .verse[data-idx="' + abs + '"]');
+    if (el) {
+      el.classList.remove('pend');
+      if (c.skipped) el.classList.add('skipped');
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    if (c.skipped) R.clean = false;
+    else { if (settings.sound) chime(); addStat('r'); }
+  }
+  if (R.sess.progress().done) hifzRecitePassDone();
+}
+
+async function hifzRecitePassDone() {
+  const R = hifzRecite;
+  const clean = R.clean, target = R.target;
+  hifzRecite = null;
+  holdRecog();
+  hideHint();
+  if (target === 'passage') {
+    if (!clean) {
+      setBanner('⚠️ لم تُحتسب (تخطٍّ أو توقف) — أعد تسميع الفقرة', '');
+      await speak('لم تحتسب، أعد تسميع الفقرة');
+      startHifzRecite('passage');
+      return;
+    }
+    hifz.count = Math.min((hifz.count || 0) + 1, 3);
+    saveHifzProgress();
+    if (hifz.count >= 3) {
+      if (hifz.from === 0) {
+        /* الفقرة تبدأ من أول السورة — التثبيت متحقق ضمن التسميعات الثلاث */
+        hifz.linkDone = true;
+        saveHifzProgress();
+        passageMastered();
+        return;
+      }
+      chime(true);
+      setBanner('✅ ٣ من ٣ — الآن التثبيت: سمّع من أول السورة', 'link');
+      await speak('أحسنت، ثلاث مرات بلا أخطاء. الآن سمع من أول السورة حتى نهاية الفقرة');
+      startHifzRecite('link');
+      return;
+    }
+    chime(true);
+    setBanner('✅ تسميع صحيح (' + arNum(hifz.count) + ' من ٣) — أعد تسميع الفقرة', 'repeat');
+    await speak('أحسنت. أعد تسميع الفقرة');
+    startHifzRecite('passage');
+  } else {
+    if (!clean) {
+      setBanner('⚠️ لم يُحتسب التثبيت — أعد التسميع من أول السورة', '');
+      await speak('لم يحتسب، أعد التسميع من أول السورة');
+      startHifzRecite('link');
+      return;
+    }
+    hifz.linkDone = true;
+    saveHifzProgress();
+    passageMastered();
+  }
+}
+
+async function passageMastered() {
+  chime(true);
+  exitToListenIdle();
+  updateNextPassageBtn();
+  const last = hifz.to + 1 >= QURAN[hifz.si].verses.length;
+  if (last) {
+    setBanner('🎉 ثبّت آخر فقرة — اكتملت السورة، تقبل الله', 'link');
+    await speak('ما شاء الله، اكتملت السورة، تقبل الله منك');
+  } else {
+    setBanner('🏆 ثبّت حفظ الفقرة ' + arNum(hifz.from + 1) + '–' + arNum(hifz.to + 1) + ' — الانتقال بيدك', 'link');
+    await speak('ما شاء الله، ثبت حفظ الفقرة. اضغط زر الفقرة التالية عندما تشاء');
+  }
+}
+
+function updateNextPassageBtn() {
+  const ok = mode === 'hifz' && hifz && hifz.count >= 3 && hifz.linkDone &&
+             hifz.to + 1 < QURAN[hifz.si].verses.length;
+  $('btnNextPassage').style.display = ok ? 'block' : 'none';
+}
+
+/* الانتقال اليدوي للفقرة التالية (بنفس حجم الفقرة) */
+function nextPassage() {
+  if (!hifz || !(hifz.count >= 3 && hifz.linkDone)) return;
+  const size = hifz.to - hifz.from + 1;
+  const len = QURAN[hifz.si].verses.length;
+  const nf = hifz.to + 1;
+  if (nf >= len) return;
+  hifz.from = nf;
+  hifz.to = Math.min(nf + size - 1, len - 1);
+  hifz.pos = hifz.from; hifz.rep = 0; hifz.pass = 0;
+  hifz.count = 0; hifz.linkDone = false;
+  hifzRecite = null;
+  settings.hifz.s = hifz.si; settings.hifz.a = hifz.from; settings.hifz.to = hifz.to;
+  saveSettings();
+  saveHifzProgress();
+  updateNextPassageBtn();
+  buildHifzList();
+  if (settings.sound) chime();
+  hifzPlayCurrent();
+}
+
+/* زر بداية الفقرة */
+function hifzRestartPassage() {
+  if (mode !== 'hifz' || !running || !hifz || paused) return;
+  if (hifzRecite) { startHifzRecite(hifzRecite.target); return; }
+  hifz.rep = 0;
+  hifzJump(hifz.from);
 }
 
 /* =============== تشغيل الصوت =============== */
@@ -889,29 +1172,39 @@ function speak(txt) {
 function holdRecog() { recogHold = true; try { recog && recog.abort(); } catch (e) {} }
 function releaseRecog() {
   recogHold = false;
-  if (running && !paused && mode === 'tasmee') { try { recog.start(); } catch (e) {} }
+  if (running && !paused && (mode === 'tasmee' || hifzRecite)) { try { recog.start(); } catch (e) {} }
 }
 
 /* =============== تذكير الصمت (التسميع) =============== */
+function activeRecite() {
+  if (mode === 'tasmee' && session) return { sess: session, si: curSurah, base: 0, hintOn: settings.hint };
+  if (mode === 'hifz' && hifzRecite) return { sess: hifzRecite.sess, si: hifz.si, base: hifzRecite.base, hintOn: true };
+  return null;
+}
+
 function checkHint() {
-  if (!running || paused || recogHold || mode !== 'tasmee') return;
-  if (!settings.hint || hintShown) return;
-  if (session.progress().done) return;
+  if (!running || paused || recogHold) return;
+  const act = activeRecite();
+  if (!act || !act.hintOn || hintShown) return;
+  if (act.sess.progress().done) return;
   if (Date.now() - lastActivity >= HINT_DELAY) showHint();
 }
 
 function showHint() {
-  const p = session.progress();
+  const act = activeRecite();
+  if (!act) return;
+  const p = act.sess.progress();
   if (p.done) return;
+  if (mode === 'hifz' && hifzRecite) hifzRecite.clean = false; // التوقف يلغي احتساب المرة
   let hb = $('hintBox');
   if (!hb) {
     hb = document.createElement('div');
     hb.id = 'hintBox';
     $('currentBox').appendChild(hb);
   }
-  const disp = QURAN[curSurah].verses[p.ayah].split(' ');
+  const disp = QURAN[act.si].verses[act.base + p.ayah].split(' ');
   const cut = Math.round((p.totalWords ? p.wordIndex / p.totalWords : 0) * disp.length);
-  hb.innerHTML = '<div id="hintLabel">💡 تذكير — الآية ' + arNum(p.ayah + 1) + '</div>' +
+  hb.innerHTML = '<div id="hintLabel">💡 تذكير — الآية ' + arNum(act.base + p.ayah + 1) + '</div>' +
     '<div class="hintVerse quran"><span class="said">' + disp.slice(0, cut).join(' ') + '</span> ' + disp.slice(cut).join(' ') + '</div>';
   hb.style.display = 'block';
   hintShown = true;
@@ -1116,7 +1409,7 @@ function startRecognition() {
 
   recog.onstart = () => $('mic').classList.add('on');
   recog.onresult = e => {
-    if (mode !== 'tasmee' || tapBusy || listenBusy) return;
+    if ((mode !== 'tasmee' && !hifzRecite) || tapBusy || listenBusy) return;
     lastActivity = Date.now();
     if (hintShown) hideHint();
     let finalText = '', interim = '';
@@ -1127,6 +1420,8 @@ function startRecognition() {
     }
     const heard = (finalText + ' ' + interim).trim();
     if (heard) $('heard').textContent = '🎙 ' + heard.slice(-80);
+
+    if (hifzRecite) { hifzReciteSpeech(finalText, interim); return; }
 
     if (finalText.trim()) {
       const completed = session.feed(finalText);
@@ -1155,7 +1450,7 @@ function startRecognition() {
   };
   recog.onend = () => {
     $('mic').classList.remove('on');
-    if (running && !paused && !recogHold && mode === 'tasmee') setTimeout(() => { try { recog.start(); } catch (e) {} }, 250);
+    if (running && !paused && !recogHold && (mode === 'tasmee' || hifzRecite)) setTimeout(() => { try { recog.start(); } catch (e) {} }, 250);
   };
   try { recog.start(); } catch (e) {}
 }
@@ -1176,6 +1471,7 @@ function togglePause() {
     b.classList.remove('paused');
     lastActivity = Date.now();
     if (mode === 'hifz') {
+      if (hifzRecite) { try { recog.start(); } catch (e) {} return; }
       if (pendingResume) { const f = pendingResume; pendingResume = null; f(); }
       else if (curResolve) { try { player.play(); } catch (e) {} }
       else hifzPlayCurrent();
@@ -1190,6 +1486,12 @@ function skipAyah() {
   if (!running) return;
   if (mode === 'hifz') {
     if (paused || !hifz) return;
+    if (hifzRecite) {
+      hifzRecite.clean = false;
+      hifzReciteCompleted(hifzRecite.sess.skipAyah());
+      if (hifzRecite) updateHifzReciteBox(hifzRecite.sess);
+      return;
+    }
     hifz.rep = 0; hifz.pos++;
     if (hifz.pos > hifz.to) {
       hifz.pass++;
@@ -1270,7 +1572,7 @@ function setupInstall() {
 }
 
 init();
-/* v6.0 — v3 نظيفة: الأصلية + «من البداية» + استماع مسبق بصوت علي جابر (بدون أي ميزات v2) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v7.0 — v4: شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
