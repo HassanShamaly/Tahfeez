@@ -102,7 +102,7 @@
 
   #heard { min-height: 26px; padding: 4px 18px 8px; color: var(--dim); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
   #controls {
-    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
     padding: 10px 14px calc(14px + env(safe-area-inset-bottom)); background: var(--card);
     border-top: 1px solid var(--border);
   }
@@ -154,7 +154,7 @@
 <!-- ======= شاشة الإعداد ======= -->
 <section id="setup" class="screen active">
   <h1>متابع التسميع</h1>
-  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة</div>
+  <div class="sub">تسميعٌ وتحفيظ بالصوت — بلا لمس للشاشة <b style="color:var(--gold)">v3</b></div>
 
   <div id="statsStrip"></div>
 
@@ -212,6 +212,7 @@
       <option value="Alafasy_64kbps">مشاري العفاسي</option>
       <option value="Husary_64kbps">محمود الحصري (مرتل)</option>
       <option value="Minshawy_Murattal_128kbps">المنشاوي (مرتل)</option>
+      <option value="Ali_Jaber_64kbps">علي جابر</option>
     </select>
   </div>
 
@@ -270,6 +271,8 @@
 
   <div id="controls">
     <button id="btnPause">⏸️ إيقاف</button>
+    <button id="btnListen" style="display:none">▶️ استماع</button>
+    <button id="btnRestart" style="display:none">🔄 من البداية</button>
     <button id="btnReplay">🔊 إعادة</button>
     <button id="btnSkip">⏭️ تخطي</button>
     <button id="btnStop">🏁 إنهاء</button>
@@ -385,6 +388,16 @@ const HINT_DELAY = 5000;
 /* حالة التحفيظ (استماع وتكرار) */
 let hifz = null;                  // {si, from, to, pos, rep, pass}
 let reviewTo = -1;                // نهاية نطاق مراجعة التسميع (-1 = تسميع عادي)
+
+/* كشف فقدان التزامن أثناء التسميع */
+let lastBuf = [];                 // آخر الكلمات المسموعة (مطبّعة)
+let spokenSinceAdvance = 0;       // كلمات سُمعت دون أي تقدم في المطابقة
+let lastAnnounceAt = 0;           // آخر عتبة أُطلق عندها تنبيه
+let lastResultTime = 0;           // آخر وصول نتيجة من التعرف الصوتي
+const LOST_AFTER_WORDS = 6;
+const MIC_DEAD_MS = 25000;
+let listenBusy = false;           // الاستماع المسبق قيد التشغيل
+let sessionStart = { si: 0, ai: 0 }; // بداية الجلسة الحالية (لزر «من البداية»)
 let player = null, curResolve = null, pendingResume = null, tapBusy = false;
 
 const $ = id => document.getElementById(id);
@@ -636,6 +649,8 @@ async function init() {
   $('btnReplay').onclick = () => {
     if (mode === 'hifz' && running && !paused && hifz) { cancelPlayback(); hifzPlayCurrent(); }
   };
+  $('btnRestart').onclick = restartTasmee;
+  $('btnListen').onclick = toggleListenAhead;
 
   /* الضغط على آية لسماعها */
   $('verses').addEventListener('click', e => {
@@ -698,10 +713,15 @@ function startRecite(si, ai) {
   saveSettings();
 
   curSurah = si; startAyah = ai;
+  sessionStart = { si, ai };
+  listenBusy = false;
   $('verses').innerHTML = '';
   $('heard').textContent = '';
   $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
   $('btnReplay').style.display = mode === 'hifz' ? 'block' : 'none';
+  $('btnListen').style.display = mode === 'tasmee' ? 'block' : 'none';
+  $('btnListen').textContent = '▶️ استماع';
+  $('btnRestart').style.display = mode === 'tasmee' ? 'block' : 'none';
   $('phaseBanner').style.display = mode === 'hifz' ? 'block' : 'none';
   $('mic').style.display = mode === 'hifz' ? 'none' : 'block';
   $('heard').style.display = mode === 'hifz' ? 'none' : 'block';
@@ -718,6 +738,8 @@ function startRecite(si, ai) {
   if (mode === 'hifz') { reviewTo = -1; startHifz(si, ai); return; }
 
   /* --- وضع التسميع --- */
+  lastBuf = []; spokenSinceAdvance = 0; lastAnnounceAt = 0;
+  lastResultTime = Date.now();
   reviewTo = +$('ayahToSel').value;
   if (!(reviewTo >= ai && reviewTo < QURAN[si].verses.length)) reviewTo = -1;
   if (reviewTo >= 0) {
@@ -810,7 +832,7 @@ function saveHifzProgress() {
 }
 
 /* =============== تشغيل الصوت =============== */
-function playVerse(si, ai) {
+function playVerse(si, ai, reciter) {
   return new Promise(resolve => {
     cancelPlayback();
     if (!player) player = new Audio();
@@ -822,7 +844,7 @@ function playVerse(si, ai) {
       resolve(st);
     };
     curResolve = fin;
-    player.src = 'https://everyayah.com/data/' + settings.reciter + '/' + pad3(si + 1) + pad3(ai + 1) + '.mp3';
+    player.src = 'https://everyayah.com/data/' + (reciter || settings.reciter) + '/' + pad3(si + 1) + pad3(ai + 1) + '.mp3';
     player.onended = () => fin('done');
     player.onerror = () => {
       if (mode === 'hifz') setBanner('⚠️ تعذر تشغيل الصوت — تحقق من الإنترنت', '');
@@ -862,8 +884,9 @@ async function tapPlay(si, idx, el) {
 function speak(txt) {
   return new Promise(resolve => {
     if (!('speechSynthesis' in window)) return resolve();
+    holdRecog();
     let fin = false;
-    const end = () => { if (fin) return; fin = true; resolve(); };
+    const end = () => { if (fin) return; fin = true; releaseRecog(); resolve(); };
     try {
       const u = new SpeechSynthesisUtterance(txt);
       u.lang = 'ar-SA'; u.rate = 1.05;
@@ -883,6 +906,10 @@ function releaseRecog() {
 /* =============== تذكير الصمت (التسميع) =============== */
 function checkHint() {
   if (!running || paused || recogHold || mode !== 'tasmee') return;
+  if (lastResultTime && Date.now() - lastResultTime > MIC_DEAD_MS && !tapBusy && !listenBusy) {
+    lastResultTime = Date.now();
+    try { recog.abort(); } catch (e) {} // onend يعيد التشغيل
+  }
   if (!settings.hint || hintShown) return;
   if (session.progress().done) return;
   if (Date.now() - lastActivity >= HINT_DELAY) showHint();
@@ -1004,6 +1031,113 @@ function handleCompleted(list) {
   if (session.progress().done) nextSurah();
 }
 
+/* 🔄 إعادة التسميع من بداية الجلسة */
+function restartTasmee() {
+  if (mode !== 'tasmee' || !running) return;
+  listenBusy = false; tapBusy = false;
+  cancelPlayback();
+  hideHint();
+  const si = sessionStart.si, ai = sessionStart.ai;
+  curSurah = si;
+  const noBasmalah = (si === 0 || si === 8);
+  session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
+  $('verses').innerHTML = '';
+  $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
+  if (ai === 0 && !noBasmalah) addBismillah();
+  lastBuf = []; spokenSinceAdvance = 0; lastAnnounceAt = 0;
+  lastActivity = Date.now(); lastResultTime = Date.now();
+  updateHeader(); renderCurrentBox();
+  if (reviewTo >= 0) setBanner('🎙 مراجعة الآيات ' + arNum(ai + 1) + '–' + arNum(reviewTo + 1) + ' — من البداية', 'link');
+  $('btnListen').textContent = '▶️ استماع';
+  if (settings.sound) chime();
+  releaseRecog();
+}
+
+/* ▶️ الاستماع للآيات القادمة بصوت علي جابر قبل تسميعها (ضغطة أخرى للإيقاف) */
+async function toggleListenAhead() {
+  if (mode !== 'tasmee' || !running || paused) return;
+  if (listenBusy) { listenBusy = false; cancelPlayback(); return; }
+  if (session.progress().done) return;
+  listenBusy = true;
+  holdRecog();
+  const btn = $('btnListen');
+  btn.textContent = '⏹ إيقاف';
+  $('phaseBanner').style.display = 'block';
+  let a = session.progress().ayah;
+  const end = reviewTo >= 0 ? reviewTo : QURAN[curSurah].verses.length - 1;
+  while (listenBusy && running && !paused && a <= end) {
+    setBanner('▶️ استماع (علي جابر) — الآية ' + arNum(a + 1), 'listen');
+    const st = await playVerse(curSurah, a, 'Ali_Jaber_64kbps');
+    if (st === 'cancelled' || !listenBusy) break;
+    a++;
+    if (a <= end) await new Promise(r => setTimeout(r, 350));
+  }
+  listenBusy = false;
+  btn.textContent = '▶️ استماع';
+  if (reviewTo >= 0) setBanner('🎙 مراجعة الآيات ' + arNum(sessionStart.ai + 1) + '–' + arNum(reviewTo + 1) + ' — لا تغيّر موضعك المحفوظ', 'link');
+  else $('phaseBanner').style.display = 'none';
+  lastActivity = Date.now(); lastResultTime = Date.now();
+  releaseRecog();
+}
+
+/* إعادة التزامن: آخر ما سُمع يطابق بداية الآية الحالية (إعادة) أو آية قادمة (قفزة) */
+function tryResync() {
+  const cur = session.progress().ayah;
+  const total = session.tokens.length;
+  for (let k = 0; k <= 4; k++) {
+    const target = cur + k;
+    if (target >= total) break;
+    if (reviewTo >= 0 && target > reviewTo) break;
+    const w = session.tokens[target].words;
+    const maxM = Math.min(w.length, lastBuf.length, 8);
+    const minM = Math.min(3, w.length);
+    for (let m = maxM; m >= minM; m--) {
+      const tail = lastBuf.slice(-m);
+      let ok = true;
+      for (let i = 0; i < m; i++) {
+        if (!Matcher.wordMatch(tail[i], w[i])) { ok = false; break; }
+      }
+      if (!ok) continue;
+      for (let j = cur; j < target; j++) showVerse(j, true);
+      session.ayah = target; session.wi = m;
+      session.pendingWord = null; session.bismillahDone = true;
+      if (session.wi >= w.length) {
+        session.completedInCall = [];
+        session._completeAyah(false);
+        handleCompleted(session.completedInCall);
+      }
+      hideHint();
+      updateCurrentBox(session); updateHeader(); saveProgress();
+      if (settings.sound) chime();
+      try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+      return true;
+    }
+  }
+  return false;
+}
+
+function buzz() {
+  try {
+    const ctx = chime.ctx || (chime.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    [0, 0.35].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 320;
+      g.gain.setValueAtTime(0.3, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch (e) {}
+}
+
+async function lostAlert() {
+  buzz();
+  try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {}
+  showHint();
+  const n = session.progress().ayah + 1;
+  await speak('توقفت المتابعة عند الآية ' + n);
+}
+
 function finishReview() {
   running = false;
   try { recog && recog.stop(); } catch (e) {}
@@ -1056,8 +1190,9 @@ function startRecognition() {
 
   recog.onstart = () => $('mic').classList.add('on');
   recog.onresult = e => {
-    if (mode !== 'tasmee' || tapBusy) return;
+    if (mode !== 'tasmee' || tapBusy || listenBusy) return;
     lastActivity = Date.now();
+    lastResultTime = Date.now();
     if (hintShown) hideHint();
     let finalText = '', interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -1069,15 +1204,34 @@ function startRecognition() {
     if (heard) $('heard').textContent = '🎙 ' + heard.slice(-80);
 
     if (finalText.trim()) {
+      const fw = Matcher.words(finalText);
+      const before = session.progress();
       const completed = session.feed(finalText);
+      const after = session.progress();
+      lastBuf.push(...fw);
+      if (lastBuf.length > 14) lastBuf.splice(0, lastBuf.length - 14);
+      if (after.ayah !== before.ayah || after.wordIndex !== before.wordIndex) {
+        spokenSinceAdvance = 0; lastAnnounceAt = 0;
+      } else {
+        spokenSinceAdvance += fw.length;
+      }
       handleCompleted(completed);
       updateCurrentBox(session); updateHeader();
+      if (running && spokenSinceAdvance >= LOST_AFTER_WORDS && !session.progress().done) {
+        if (tryResync()) {
+          spokenSinceAdvance = 0; lastAnnounceAt = 0;
+        } else if (spokenSinceAdvance - lastAnnounceAt >= LOST_AFTER_WORDS) {
+          lastAnnounceAt = spokenSinceAdvance;
+          lostAlert();
+        }
+      }
     }
     if (interim.trim()) {
       const trial = session.clone();
       const completed = trial.feed(interim);
       if (completed.length) {
         session.feed(interim);
+        spokenSinceAdvance = 0; lastAnnounceAt = 0;
         handleCompleted(completed);
         updateCurrentBox(session); updateHeader();
         try { recog.abort(); } catch (err) {}
@@ -1091,6 +1245,8 @@ function startRecognition() {
       running = false;
       $('mic').classList.remove('on');
       alert('لم يُسمح باستخدام الميكروفون. فعّل الإذن من إعدادات المتصفح.');
+    } else if (e.error === 'network' || e.error === 'audio-capture') {
+      buzz();
     }
   };
   recog.onend = () => {
@@ -1121,6 +1277,7 @@ function togglePause() {
       else hifzPlayCurrent();
       return;
     }
+    if (listenBusy && curResolve) { try { player.play(); } catch (e) {} return; }
     try { recog.start(); } catch (e) {}
   }
 }
@@ -1142,6 +1299,7 @@ function skipAyah() {
   }
   if (!session || session.progress().done) return;
   hideHint(); lastActivity = Date.now();
+  lastBuf = []; spokenSinceAdvance = 0; lastAnnounceAt = 0;
   handleCompleted(session.skipAyah());
   updateCurrentBox(session); updateHeader();
 }
@@ -1209,7 +1367,7 @@ function setupInstall() {
 }
 
 init();
-/* v3.5 — لوحة المتابعة التحفيزية (متابعتي) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v5.0 — v3: كل المزايا + إعادة التسميع من البداية + استماع مسبق بصوت علي جابر — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
