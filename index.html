@@ -1017,8 +1017,8 @@ async function hifzRecitePassDone() {
   hideHint();
   if (target === 'passage') {
     if (!clean) {
-      setBanner('⚠️ لم تُحتسب (تخطٍّ أو توقف) — أعد تسميع الفقرة', '');
-      await speak('لم تحتسب، أعد تسميع الفقرة');
+      /* تخطٍّ = المحاولة لا تُحسب — إعادة صامتة */
+      setBanner('⚠️ لم تُحتسب (استُخدم التخطي) — أعد تسميع الفقرة', '');
       startHifzRecite('passage');
       return;
     }
@@ -1034,18 +1034,17 @@ async function hifzRecitePassDone() {
       }
       chime(true);
       setBanner('✅ ٣ من ٣ — الآن التثبيت: سمّع من أول السورة', 'link');
-      await speak('أحسنت، ثلاث مرات بلا أخطاء. الآن سمع من أول السورة حتى نهاية الفقرة');
+      await speak('أحسنت، الآن سمع من أول السورة');
       startHifzRecite('link');
       return;
     }
+    /* محاولة صحيحة — نغمة مزدوجة وشريط فقط، بلا كلام */
     chime(true);
-    setBanner('✅ تسميع صحيح (' + arNum(hifz.count) + ' من ٣) — أعد تسميع الفقرة', 'repeat');
-    await speak('أحسنت. أعد تسميع الفقرة');
+    setBanner('✅ صحيحة (' + arNum(hifz.count) + ' من ٣) — أعد تسميع الفقرة', 'repeat');
     startHifzRecite('passage');
   } else {
     if (!clean) {
-      setBanner('⚠️ لم يُحتسب التثبيت — أعد التسميع من أول السورة', '');
-      await speak('لم يحتسب، أعد التسميع من أول السورة');
+      setBanner('⚠️ لم يُحتسب التثبيت — أعد من أول السورة', '');
       startHifzRecite('link');
       return;
     }
@@ -1195,7 +1194,6 @@ function showHint() {
   if (!act) return;
   const p = act.sess.progress();
   if (p.done) return;
-  if (mode === 'hifz' && hifzRecite) hifzRecite.clean = false; // التوقف يلغي احتساب المرة
   let hb = $('hintBox');
   if (!hb) {
     hb = document.createElement('div');
@@ -1572,7 +1570,7 @@ function setupInstall() {
 }
 
 init();
-/* v7.0 — v4: شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v7.1 — v4 (تسميع الفقرة بلا مقاطعات: التذكير لا يلغي المحاولة، ولا كلام بين المحاولات): شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
