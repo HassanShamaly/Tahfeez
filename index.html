@@ -65,17 +65,17 @@
   /* ===== شاشة الجلسة ===== */
   #recite header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 7px 12px; background: var(--card); border-bottom: 1px solid var(--border);
   }
-  #surahTitle { color: var(--gold); font-size: 22px; font-weight: 700; }
-  #ayahCounter { color: var(--dim); font-size: 16px; }
+  #surahTitle { color: var(--gold); font-size: 16px; font-weight: 700; }
+  #ayahCounter { color: var(--dim); font-size: 13px; }
   #mic { width: 16px; height: 16px; border-radius: 50%; background: var(--red); transition: background .3s; flex-shrink: 0; }
   #mic.on { background: var(--green); animation: pulse 1.6s infinite; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(76,175,125,.55);} 50% { box-shadow: 0 0 0 12px rgba(76,175,125,0);} }
 
   #phaseBanner {
-    display: none; text-align: center; font-size: 21px; font-weight: 700;
-    color: #131006; background: var(--gold); padding: 12px 10px;
+    display: none; text-align: center; font-size: 17px; font-weight: 700;
+    color: #131006; background: var(--gold); padding: 8px 10px;
   }
   #phaseBanner.listen { background: #7ec8e3; }
   #phaseBanner.link { background: var(--gold); }
@@ -102,17 +102,17 @@
 
   #heard { min-height: 26px; padding: 4px 18px 8px; color: var(--dim); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
   #controls {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-    padding: 10px 14px calc(14px + env(safe-area-inset-bottom)); background: var(--card);
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); background: var(--card);
     border-top: 1px solid var(--border);
   }
   #controls button {
-    padding: 18px 4px; font-size: 18px; font-weight: 700; font-family: inherit;
-    border: none; border-radius: 14px; color: var(--text); background: var(--card2);
+    padding: 11px 3px; font-size: 14px; font-weight: 700; font-family: inherit;
+    border: none; border-radius: 12px; color: var(--text); background: var(--card2);
+    white-space: nowrap; overflow: hidden;
   }
   #btnPause.paused { background: var(--green); color: #06130c; }
   #btnStop { background: #3a2424; color: #f0b9b9; }
-  #btnReplay { display: none; }
 
   /* ===== الشاشة الرئيسية والأوضاع ===== */
   .modeCard { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 18px; margin-bottom: 14px; cursor: pointer; }
@@ -312,7 +312,6 @@
     <button id="btnListen" style="display:none">▶️ استماع</button>
     <button id="btnRestart" style="display:none">🔄 من البداية</button>
     <button id="btnHifzRecite" style="display:none">🎙 سمّع الفقرة</button>
-    <button id="btnReplay">🔊 إعادة</button>
     <button id="btnTafsir">📖 شرح</button>
     <button id="btnSkip">⏭️ تخطي</button>
     <button id="btnStop">🏁 إنهاء</button>
@@ -702,9 +701,6 @@ async function init() {
   $('btnPause').onclick = togglePause;
   $('btnSkip').onclick = skipAyah;
   $('btnStop').onclick = stopRecite;
-  $('btnReplay').onclick = () => {
-    if (mode === 'hifz' && running && !paused && hifz && !hifzRecite) { cancelPlayback(); hifzPlayCurrent(); }
-  };
   $('btnRestart').onclick = () => { if (mode === 'hifz') hifzRestartPassage(); else restartTasmee(); };
   $('btnListen').onclick = toggleListenAhead;
   $('btnHifzRecite').onclick = toggleHifzRecite;
@@ -779,7 +775,6 @@ function startRecite(si, ai) {
   $('verses').innerHTML = '';
   $('heard').textContent = '';
   $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
-  $('btnReplay').style.display = mode === 'hifz' ? 'block' : 'none';
   $('btnListen').style.display = mode === 'tasmee' ? 'block' : 'none';
   $('btnListen').textContent = '▶️ استماع';
   $('btnRestart').style.display = 'block';
@@ -1001,7 +996,6 @@ function startHifzRecite(target) {
   $('heard').style.display = 'block';
   $('heard').textContent = '';
   $('btnHifzRecite').textContent = '🎧 عودة للاستماع';
-  $('btnReplay').style.display = 'none';
   hifzReciteBanner();
   $('ayahCounter').textContent = target === 'link'
     ? 'تثبيت: ١–' + arNum(hifz.to + 1)
@@ -1025,7 +1019,6 @@ function exitToListenIdle() {
   $('mic').style.display = 'none';
   $('heard').style.display = 'none';
   $('btnHifzRecite').textContent = '🎙 سمّع الفقرة';
-  $('btnReplay').style.display = 'block';
   buildHifzList();
   hifz.pos = hifz.from; hifz.rep = 0; hifz.pass = 0;
   $('ayahCounter').textContent = 'الفقرة ' + arNum(hifz.from + 1) + '–' + arNum(hifz.to + 1);
@@ -1662,7 +1655,7 @@ function setupInstall() {
 }
 
 init();
-/* v7.3 — الشرح عند الطلب فقط: زر «شرح» بلوحة منبثقة وأسهم تنقل (تسميع الفقرة بلا مقاطعات: التذكير لا يلغي المحاولة، ولا كلام بين المحاولات): شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v7.4 — واجهة جلسة مدمجة (حذف الإعادة وتصغير الأزرار والرأس) — الشرح عند الطلب فقط: زر «شرح» بلوحة منبثقة وأسهم تنقل (تسميع الفقرة بلا مقاطعات: التذكير لا يلغي المحاولة، ولا كلام بين المحاولات): شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
