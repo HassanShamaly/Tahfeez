@@ -88,6 +88,8 @@
   .verse.skipped { color: var(--dim); }
   .verse.pend { color: var(--dim); animation: none; }
   .verse.playing { color: var(--gold); background: var(--card2); }
+  .verse.read { color: var(--dim); opacity: .75; animation: none; }
+  #btnMicToggle.off { background: #34302a; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none;} }
   #currentBox { margin: 14px 0 6px; background: var(--card2); border: 1px dashed var(--border); border-radius: 16px; padding: 14px 16px; }
   #currentLabel { color: var(--dim); font-size: 15px; margin-bottom: 8px; display: flex; justify-content: space-between; }
@@ -324,6 +326,7 @@
     <button id="btnListen" style="display:none">▶️ استماع</button>
     <button id="btnRestart" style="display:none">🔄 من البداية</button>
     <button id="btnHifzRecite" style="display:none">🎙 سمّع الفقرة</button>
+    <button id="btnMicToggle" style="display:none">🎙 المتابعة: تعمل</button>
     <button id="btnTafsir">📖 شرح</button>
     <button id="btnSkip">⏭️ تخطي</button>
     <button id="btnStop">🏁 إنهاء</button>
@@ -826,6 +829,7 @@ async function init() {
   $('btnHifzRecite').onclick = toggleHifzRecite;
   $('btnNextPassage').onclick = nextPassage;
   $('btnTafsir').onclick = openTafsir;
+  $('btnMicToggle').onclick = toggleMicFollow;
   $('tfPrev').onclick = () => { tfIdx--; renderTafsir(); };
   $('tfNext').onclick = () => { tfIdx++; renderTafsir(); };
   $('tfClose').onclick = () => { $('tafsirModal').style.display = 'none'; };
@@ -836,6 +840,7 @@ async function init() {
     if (!v || v.dataset.idx === undefined) return;
     const idx = +v.dataset.idx, si = +v.dataset.si;
     if (mode === 'hifz') { if (!hifzRecite && running && !paused) hifzJump(idx); }
+    else if (khatmaActive) khatmaJumpTo(idx);
     else tapPlay(si, idx, v);
   });
 
@@ -886,9 +891,10 @@ function startRecite(si, ai, kh) {
     settings.reciter = cur.reciter;
     settings.reps = +cur.reps || 3;
     settings.passes = 0;
-    settings.preview = true;
+    settings.preview = false;   // العرض هنا مصحفي كامل
     settings.sound = cur.sound !== false;
-    settings.hint = true;
+    settings.hint = false;      // النص ظاهر أمام القارئ
+    micFollow = true;
   } else {
     captureModeUI(mode);
     settings.mode = mode;
@@ -908,13 +914,16 @@ function startRecite(si, ai, kh) {
   $('verses').innerHTML = '';
   $('heard').textContent = '';
   $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
-  $('btnListen').style.display = mode === 'tasmee' ? 'block' : 'none';
+  $('btnListen').style.display = (mode === 'tasmee' && !khatmaActive) ? 'block' : 'none';
   $('btnListen').textContent = '▶️ استماع';
   $('btnRestart').style.display = 'block';
   $('btnRestart').textContent = mode === 'hifz' ? '⏮ بداية الفقرة' : '🔄 من البداية';
   $('btnHifzRecite').style.display = mode === 'hifz' ? 'block' : 'none';
   $('btnHifzRecite').textContent = '🎙 سمّع الفقرة';
   $('btnNextPassage').style.display = 'none';
+  $('btnMicToggle').style.display = khatmaActive ? 'block' : 'none';
+  $('btnMicToggle').textContent = '🎙 المتابعة: تعمل';
+  $('btnMicToggle').classList.remove('off');
   $('phaseBanner').style.display = mode === 'hifz' ? 'block' : 'none';
   $('mic').style.display = mode === 'hifz' ? 'none' : 'block';
   $('heard').style.display = mode === 'hifz' ? 'none' : 'block';
@@ -940,9 +949,83 @@ function startRecite(si, ai, kh) {
   }
   const noBasmalah = (si === 0 || si === 8);
   session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
+  if (khatmaActive) {
+    updateHeader();
+    buildKhatmaView();
+    startRecognition();
+    return;
+  }
   if (ai === 0 && !noBasmalah) addBismillah();
   updateHeader(); renderCurrentBox();
   startRecognition();
+}
+
+/* ===== عرض الختمة: السورة كاملة كصفحة مصحف ===== */
+let micFollow = true;
+
+function buildKhatmaView() {
+  const len = QURAN[curSurah].verses.length;
+  const v = $('verses');
+  v.innerHTML = '';
+  if (curSurah !== 8 && curSurah !== 0) {
+    const b = document.createElement('div');
+    b.className = 'bismillah quran';
+    b.textContent = BISMILLAH_TEXT;
+    v.appendChild(b);
+  }
+  for (let i = 0; i < len; i++) {
+    const d = document.createElement('div');
+    d.className = 'verse quran';
+    d.dataset.idx = i; d.dataset.si = curSurah;
+    d.innerHTML = QURAN[curSurah].verses[i] + ' <span class="num">﴿' + arNum(i + 1) + '﴾</span>';
+    v.appendChild(d);
+  }
+  paintKhatma();
+}
+
+function paintKhatma() {
+  if (!session) return;
+  const cur = session.progress().ayah;
+  document.querySelectorAll('#verses .verse').forEach(el => {
+    const i = +el.dataset.idx;
+    el.classList.toggle('read', i < cur);
+    el.classList.toggle('playing', i === cur);
+  });
+  const el = document.querySelector('#verses .verse.playing');
+  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function markKhatmaRead(idx, skipped) {
+  if (!skipped) { if (settings.sound) chime(); addStat('t'); }
+  saveProgress();
+  paintKhatma();
+  updateHeader();
+}
+
+/* القراءة السرية: اضغط الآية التي وصلت إليها */
+function khatmaJumpTo(idx) {
+  if (!khatmaActive || !session || !running) return;
+  if (idx < 0 || idx >= QURAN[curSurah].verses.length) return;
+  session.ayah = idx; session.wi = 0;
+  session.pendingWord = null; session.bismillahDone = true;
+  paintKhatma();
+  updateHeader();
+  saveProgress();
+}
+
+function toggleMicFollow() {
+  if (!khatmaActive || !running) return;
+  micFollow = !micFollow;
+  const b = $('btnMicToggle');
+  if (micFollow) {
+    b.textContent = '🎙 المتابعة: تعمل';
+    b.classList.remove('off');
+    releaseRecog();
+  } else {
+    b.textContent = '🤫 قراءة صامتة';
+    b.classList.add('off');
+    holdRecog();
+  }
 }
 
 /* =============== وضع التحفيظ: استماع وتكرار =============== */
@@ -1466,6 +1549,7 @@ function renderCurrentBox() {
 }
 
 function updateCurrentBox(sess) {
+  if (khatmaActive) return;
   const p = sess.progress();
   if (p.done) return;
   $('curName').textContent = 'الآية ' + arNum(p.ayah + 1) + ' …';
@@ -1489,6 +1573,7 @@ function addBismillah() {
 }
 
 function showVerse(idx, skipped) {
+  if (khatmaActive) { markKhatmaRead(idx, skipped); return; }
   const box = $('currentBox');
   const d = document.createElement('div');
   d.className = 'verse quran' + (skipped ? ' skipped' : '');
@@ -1542,6 +1627,14 @@ function restartTasmee() {
   curSurah = si;
   const noBasmalah = (si === 0 || si === 8);
   session = new Matcher.Session(QURAN[si].verses, ai, { noBismillah: noBasmalah });
+  if (khatmaActive) {
+    $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
+    lastActivity = Date.now();
+    updateHeader(); buildKhatmaView();
+    if (settings.sound) chime();
+    releaseRecog();
+    return;
+  }
   $('verses').innerHTML = '';
   $('surahTitle').textContent = 'سورة ' + QURAN[si].name;
   if (ai === 0 && !noBasmalah) addBismillah();
@@ -1606,6 +1699,12 @@ function nextSurah() {
   curSurah++;
   const noBasmalah = (curSurah === 8);
   session = new Matcher.Session(QURAN[curSurah].verses, 0, { noBismillah: noBasmalah });
+  if (khatmaActive) {
+    $('surahTitle').textContent = 'سورة ' + QURAN[curSurah].name;
+    updateHeader();
+    buildKhatmaView();
+    return;
+  }
   const h = document.createElement('div');
   h.className = 'surahHead';
   h.textContent = 'سورة ' + QURAN[curSurah].name;
@@ -1796,7 +1895,7 @@ function setupInstall() {
 }
 
 init();
-/* v8.0 — v5: وضع الختمة الشهرية — واجهة جلسة مدمجة (حذف الإعادة وتصغير الأزرار والرأس) — الشرح عند الطلب فقط: زر «شرح» بلوحة منبثقة وأسهم تنقل (تسميع الفقرة بلا مقاطعات: التذكير لا يلغي المحاولة، ولا كلام بين المحاولات): شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
+/* v8.1 — الختمة بعرض مصحفي كامل + قراءة صامتة بتحديد الموضع لمساً — واجهة جلسة مدمجة (حذف الإعادة وتصغير الأزرار والرأس) — الشرح عند الطلب فقط: زر «شرح» بلوحة منبثقة وأسهم تنقل (تسميع الفقرة بلا مقاطعات: التذكير لا يلغي المحاولة، ولا كلام بين المحاولات): شاشة أوضاع + منهجية فقرة الحفظ (٣ تسميعات + تثبيت من أول السورة + انتقال يدوي فقط) — التحفيظ بالاستماع والتكرار + الضغط على الآية لسماعها */
 </script>
 </body>
 </html>
